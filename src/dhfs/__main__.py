@@ -15,17 +15,12 @@
 
 """Entrypoint of the package."""
 
-import asyncio
-
-from ghga_service_commons.api import run_server
-
-from .api.main import app  # noqa: F401
-from .config import CONFIG, Config
+from dhfs.cli import cli
 
 
-def run(config: Config = CONFIG):
-    """Run the service."""
-    asyncio.run(run_server(app="dhfs.__main__:app", config=config))
+def run():
+    """Run the service"""
+    cli()
 
 
 if __name__ == "__main__":

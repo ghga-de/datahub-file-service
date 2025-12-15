@@ -13,4 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Subpackage defining a RESTful API."""
+"""Entrypoint of the package"""
+
+import asyncio
+
+import typer
+
+from dhfs.main import perform_cleanup, run_interrogator
+
+cli = typer.Typer()
+
+
+@cli.command(name="interrogate")
+def sync_run_api():
+    """Run the file interrogation and re-encryption process."""
+    asyncio.run(run_interrogator())
+
+
+@cli.command(name="cleanup")
+def sync_run_consume_events():
+    """Run the S3 'interrogation' bucket cleanup routine."""
+    asyncio.run(perform_cleanup())
