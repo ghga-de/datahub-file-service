@@ -46,5 +46,4 @@ WORKDIR /home/appuser
 USER appuser
 ENV PYTHONUNBUFFERED=1
 
-# Please adapt to package name:
-ENTRYPOINT ["my-microservice"]
+ENTRYPOINT ["dhfs interrogate"]

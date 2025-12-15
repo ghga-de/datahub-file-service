@@ -1,4 +1,14 @@
-# Please only mention the non-default settings here:
-
-language: Greek
 service_instance_id: "1"
+object_storages:
+  inbox:
+    bucket: inbox
+    credentials:
+      s3_endpoint_url: http://dcs:4566
+      s3_access_key_id: test
+      s3_secret_access_key: test
+  interrogation:
+    bucket: interrogation
+    credentials:
+      s3_endpoint_url: http://dcs:4566
+      s3_access_key_id: test
+      s3_secret_access_key: test
