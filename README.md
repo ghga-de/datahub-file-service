@@ -49,6 +49,8 @@ dhfs --help
 ### Parameters
 
 The service requires the following configuration parameters:
+- <a id="properties/object_storages"></a>**`object_storages`** *(object, required)*: Can contain additional properties.
+  - <a id="properties/object_storages/additionalProperties"></a>**Additional properties**: Refer to *[#/$defs/S3ObjectStorageNodeConfig](#%24defs/S3ObjectStorageNodeConfig)*.
 - <a id="properties/log_level"></a>**`log_level`** *(string)*: The minimum log level to capture. Must be one of: "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", or "TRACE". Default: `"INFO"`.
 - <a id="properties/service_name"></a>**`service_name`** *(string)*: Short name of this service. Default: `"dhfs"`.
 - <a id="properties/service_instance_id"></a>**`service_instance_id`** *(string, required)*: A string that uniquely identifies this instance across all instances of this service. This is included in log messages.
@@ -73,85 +75,70 @@ The service requires the following configuration parameters:
   ```
 
 - <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
-- <a id="properties/host"></a>**`host`** *(string)*: IP of the host. Default: `"127.0.0.1"`.
-- <a id="properties/port"></a>**`port`** *(integer)*: Port to expose the server on the specified host. Default: `8080`.
-- <a id="properties/auto_reload"></a>**`auto_reload`** *(boolean)*: A development feature. Set to `True` to automatically reload the server upon code changes. Default: `false`.
-- <a id="properties/workers"></a>**`workers`** *(integer)*: Number of workers processes to run. Default: `1`.
-- <a id="properties/api_root_path"></a>**`api_root_path`** *(string)*: Root path at which the API is reachable. This is relative to the specified host and port. Default: `""`.
-- <a id="properties/openapi_url"></a>**`openapi_url`** *(string)*: Path to get the openapi specification in JSON format. This is relative to the specified host and port. Default: `"/openapi.json"`.
-- <a id="properties/docs_url"></a>**`docs_url`** *(string)*: Path to host the swagger documentation. This is relative to the specified host and port. Default: `"/docs"`.
-- <a id="properties/cors_allowed_origins"></a>**`cors_allowed_origins`**: A list of origins that should be permitted to make cross-origin requests. By default, cross-origin requests are not allowed. You can use ['*'] to allow any origin. Default: `null`.
-  - **Any of**
-    - <a id="properties/cors_allowed_origins/anyOf/0"></a>*array*
-      - <a id="properties/cors_allowed_origins/anyOf/0/items"></a>**Items** *(string)*
-    - <a id="properties/cors_allowed_origins/anyOf/1"></a>*null*
+## Definitions
 
-  Examples:
-  ```json
-  [
-      "https://example.org",
-      "https://www.example.org"
-  ]
-  ```
+- <a id="%24defs/S3Config"></a>**`S3Config`** *(object)*: S3-specific config params.
+Inherit your config class from this class if you need
+to talk to an S3 service in the backend.<br>  Args:
+    s3_endpoint_url (str): The URL to the S3 endpoint.
+    s3_access_key_id (str):
+        Part of credentials for login into the S3 service. See:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
+    s3_secret_access_key (str):
+        Part of credentials for login into the S3 service. See:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
+    s3_session_token (str | None):
+        Optional part of credentials for login into the S3 service. See:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html
+    aws_config_ini (Path | None):
+        Path to a config file for specifying more advanced S3 parameters.
+        This should follow the format described here:
+        https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file
+        Defaults to None. Cannot contain additional properties.
+  - <a id="%24defs/S3Config/properties/s3_endpoint_url"></a>**`s3_endpoint_url`** *(string, required)*: URL to the S3 API.
 
-- <a id="properties/cors_allow_credentials"></a>**`cors_allow_credentials`**: Indicate that cookies should be supported for cross-origin requests. Defaults to False. Also, cors_allowed_origins cannot be set to ['*'] for credentials to be allowed. The origins must be explicitly specified. Default: `null`.
-  - **Any of**
-    - <a id="properties/cors_allow_credentials/anyOf/0"></a>*boolean*
-    - <a id="properties/cors_allow_credentials/anyOf/1"></a>*null*
+    Examples:
+    ```json
+    "http://localhost:4566"
+    ```
 
-  Examples:
-  ```json
-  [
-      "https://example.org",
-      "https://www.example.org"
-  ]
-  ```
+  - <a id="%24defs/S3Config/properties/s3_access_key_id"></a>**`s3_access_key_id`** *(string, required)*: Part of credentials for login into the S3 service. See: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html.
 
-- <a id="properties/cors_allowed_methods"></a>**`cors_allowed_methods`**: A list of HTTP methods that should be allowed for cross-origin requests. Defaults to ['GET']. You can use ['*'] to allow all standard methods. Default: `null`.
-  - **Any of**
-    - <a id="properties/cors_allowed_methods/anyOf/0"></a>*array*
-      - <a id="properties/cors_allowed_methods/anyOf/0/items"></a>**Items** *(string)*
-    - <a id="properties/cors_allowed_methods/anyOf/1"></a>*null*
+    Examples:
+    ```json
+    "my-access-key-id"
+    ```
 
-  Examples:
-  ```json
-  [
-      "*"
-  ]
-  ```
+  - <a id="%24defs/S3Config/properties/s3_secret_access_key"></a>**`s3_secret_access_key`** *(string, format: password, required and write-only)*: Part of credentials for login into the S3 service. See: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html.
 
-- <a id="properties/cors_allowed_headers"></a>**`cors_allowed_headers`**: A list of HTTP request headers that should be supported for cross-origin requests. Defaults to []. You can use ['*'] to allow all request headers. The Accept, Accept-Language, Content-Language, Content-Type and some are always allowed for CORS requests. Default: `null`.
-  - **Any of**
-    - <a id="properties/cors_allowed_headers/anyOf/0"></a>*array*
-      - <a id="properties/cors_allowed_headers/anyOf/0/items"></a>**Items** *(string)*
-    - <a id="properties/cors_allowed_headers/anyOf/1"></a>*null*
+    Examples:
+    ```json
+    "my-secret-access-key"
+    ```
 
-  Examples:
-  ```json
-  []
-  ```
+  - <a id="%24defs/S3Config/properties/s3_session_token"></a>**`s3_session_token`**: Part of credentials for login into the S3 service. See: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html. Default: `null`.
+    - **Any of**
+      - <a id="%24defs/S3Config/properties/s3_session_token/anyOf/0"></a>*string, format: password*
+      - <a id="%24defs/S3Config/properties/s3_session_token/anyOf/1"></a>*null*
 
-- <a id="properties/cors_exposed_headers"></a>**`cors_exposed_headers`**: A list of HTTP response headers that should be exposed for cross-origin responses. Defaults to []. Note that you can NOT use ['*'] to expose all response headers. The Cache-Control, Content-Language, Content-Length, Content-Type, Expires, Last-Modified and Pragma headers are always exposed for CORS responses. Default: `null`.
-  - **Any of**
-    - <a id="properties/cors_exposed_headers/anyOf/0"></a>*array*
-      - <a id="properties/cors_exposed_headers/anyOf/0/items"></a>**Items** *(string)*
-    - <a id="properties/cors_exposed_headers/anyOf/1"></a>*null*
+    Examples:
+    ```json
+    "my-session-token"
+    ```
 
-  Examples:
-  ```json
-  []
-  ```
+  - <a id="%24defs/S3Config/properties/aws_config_ini"></a>**`aws_config_ini`**: Path to a config file for specifying more advanced S3 parameters. This should follow the format described here: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html#using-a-configuration-file. Default: `null`.
+    - **Any of**
+      - <a id="%24defs/S3Config/properties/aws_config_ini/anyOf/0"></a>*string, format: path*
+      - <a id="%24defs/S3Config/properties/aws_config_ini/anyOf/1"></a>*null*
 
-- <a id="properties/generate_correlation_id"></a>**`generate_correlation_id`** *(boolean)*: A flag, which, if False, will result in an error when inbound requests don't possess a correlation ID. If True, requests without a correlation ID will be assigned a newly generated ID in the correlation ID middleware function. Default: `true`.
+    Examples:
+    ```json
+    "~/.aws/config"
+    ```
 
-  Examples:
-  ```json
-  true
-  ```
-
-  ```json
-  false
-  ```
+- <a id="%24defs/S3ObjectStorageNodeConfig"></a>**`S3ObjectStorageNodeConfig`** *(object)*: Configuration for one specific object storage node and one bucket in it.<br>  The bucket is the main bucket that the service is responsible for. Cannot contain additional properties.
+  - <a id="%24defs/S3ObjectStorageNodeConfig/properties/bucket"></a>**`bucket`** *(string, required)*
+  - <a id="%24defs/S3ObjectStorageNodeConfig/properties/credentials"></a>**`credentials`** *(required)*: Refer to *[#/$defs/S3Config](#%24defs/S3Config)*.
 
 ### Usage:
 
