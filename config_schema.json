@@ -17,7 +17,7 @@
       "type": "string"
     },
     "service_name": {
-      "default": "my_microservice",
+      "default": "dhfs",
       "description": "Short name of this service",
       "title": "Service Name",
       "type": "string"
@@ -204,18 +204,6 @@
       ],
       "title": "Generate Correlation Id",
       "type": "boolean"
-    },
-    "language": {
-      "default": "Croatian",
-      "description": "The language.",
-      "enum": [
-        "Greek",
-        "Croatian",
-        "French",
-        "German"
-      ],
-      "title": "Language",
-      "type": "string"
     }
   },
   "required": [

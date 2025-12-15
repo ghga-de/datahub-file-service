@@ -8,12 +8,11 @@ cors_exposed_headers: null
 docs_url: /docs
 generate_correlation_id: true
 host: 127.0.0.1
-language: Greek
 log_format: null
 log_level: INFO
 log_traceback: true
 openapi_url: /openapi.json
 port: 8080
 service_instance_id: '1'
-service_name: my_microservice
+service_name: dhfs
 workers: 1

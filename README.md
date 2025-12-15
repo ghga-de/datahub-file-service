@@ -1,36 +1,9 @@
-# Microservice Repository Template
+[![tests](https://github.com/ghga-de/datahub-file-service/actions/workflows/tests.yaml/badge.svg)](https://github.com/ghga-de/datahub-file-service/actions/workflows/tests.yaml)
+[![Coverage Status](https://coveralls.io/repos/github/ghga-de/datahub-file-service/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/datahub-file-service?branch=main)
 
-This is a template for GitHub repositories containing one Python-based microservice (optimal for a multirepository setup).
+# Datahub File Service
 
-It features:
-
-- *Continuous Templation* - A continuous update delivery mechanism for templated repositories
-- A fully-configured [devcontainer](https://containers.dev/)-based development environment for VS Code
-- Tight linting and formatting using [Ruff](https://docs.astral.sh/ruff/)
-- Static type checking using [mypy](https://www.mypy-lang.org/)
-- Security scanning using [bandit](https://bandit.readthedocs.io/en/latest/)
-- A structure for automated tests using [pytest](https://docs.pytest.org/en/7.4.x/)
-- Dependency locking using [pip-tools](https://github.com/jazzband/pip-tools)
-- Git hooks checking linting and formatting before committing using [pre-commit](https://pre-commit.com/)
-- Automatic container-building and publishing to [Docker Hub](https://hub.docker.com/)
-- GitHub Actions for automating or checking all of the above
-
-It is worth emphasizing the first point, this template is not just a one-time kickstart for your project
-but repositories created using this template will continue receiving updates as the template evolves.
-For further details, please refer to the explanation in [.template/README.md](/.template/README.md).
-
-Please also refer to [.readme_generation/README.md](/.readme_generation/README.md) for details on how
-to adapt this readme.
-
-The introductory section ends here; the microservice README template begins below:
-
----
-[![tests](https://github.com/ghga-de/microservice-repository-template/actions/workflows/tests.yaml/badge.svg)](https://github.com/ghga-de/microservice-repository-template/actions/workflows/tests.yaml)
-[![Coverage Status](https://coveralls.io/repos/github/ghga-de/microservice-repository-template/badge.svg?branch=main)](https://coveralls.io/github/ghga-de/microservice-repository-template?branch=main)
-
-# My Microservice
-
-My-Microservice - a short description
+Data Hub File Service - a service enabling file inspection and re-encryption at Data Hubs
 
 ## Description
 
@@ -43,15 +16,15 @@ Here you should provide a short summary of the purpose of this microservice.
 
 We recommend using the provided Docker container.
 
-A pre-built version is available on [Docker Hub](https://hub.docker.com/repository/docker/ghga/my-microservice):
+A pre-built version is available on [Docker Hub](https://hub.docker.com/repository/docker/ghga/datahub-file-service):
 ```bash
-docker pull ghga/my-microservice:0.1.0
+docker pull ghga/datahub-file-service:0.1.0
 ```
 
 Or you can build the container yourself from the [`./Dockerfile`](./Dockerfile):
 ```bash
 # Execute in the repo's root dir:
-docker build -t ghga/my-microservice:0.1.0 .
+docker build -t ghga/datahub-file-service:0.1.0 .
 ```
 
 For production-ready deployment, we recommend using Kubernetes.
@@ -59,7 +32,7 @@ However for simple use cases, you could execute the service using docker
 on a single server:
 ```bash
 # The entrypoint is pre-configured:
-docker run -p 8080:8080 ghga/my-microservice:0.1.0 --help
+docker run -p 8080:8080 ghga/datahub-file-service:0.1.0 --help
 ```
 
 If you prefer not to use containers, you may install the service from source:
@@ -68,7 +41,7 @@ If you prefer not to use containers, you may install the service from source:
 pip install .
 
 # To run the service:
-my_microservice --help
+dhfs --help
 ```
 
 ## Configuration
@@ -77,7 +50,7 @@ my_microservice --help
 
 The service requires the following configuration parameters:
 - <a id="properties/log_level"></a>**`log_level`** *(string)*: The minimum log level to capture. Must be one of: "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", or "TRACE". Default: `"INFO"`.
-- <a id="properties/service_name"></a>**`service_name`** *(string)*: Short name of this service. Default: `"my_microservice"`.
+- <a id="properties/service_name"></a>**`service_name`** *(string)*: Short name of this service. Default: `"dhfs"`.
 - <a id="properties/service_instance_id"></a>**`service_instance_id`** *(string, required)*: A string that uniquely identifies this instance across all instances of this service. This is included in log messages.
 
   Examples:
@@ -180,15 +153,13 @@ The service requires the following configuration parameters:
   false
   ```
 
-- <a id="properties/language"></a>**`language`** *(string)*: The language. Must be one of: "Greek", "Croatian", "French", or "German". Default: `"Croatian"`.
-
 ### Usage:
 
 A template YAML file for configuring the service can be found at
 [`./example_config.yaml`](./example_config.yaml).
-Please adapt it, rename it to `.my_microservice.yaml`, and place it in one of the following locations:
-- in the current working directory where you execute the service (on Linux: `./.my_microservice.yaml`)
-- in your home directory (on Linux: `~/.my_microservice.yaml`)
+Please adapt it, rename it to `.dhfs.yaml`, and place it in one of the following locations:
+- in the current working directory where you execute the service (on Linux: `./.dhfs.yaml`)
+- in your home directory (on Linux: `~/.dhfs.yaml`)
 
 The config YAML file will be automatically parsed by the service.
 
@@ -197,8 +168,8 @@ The config YAML file will be automatically parsed by the service.
 All parameters mentioned in the [`./example_config.yaml`](./example_config.yaml)
 can also be set using environment variables or file secrets.
 
-For naming the environment variables, just prefix the parameter name with `my_microservice_`,
-e.g. for the `host` set an environment variable named `my_microservice_host`
+For naming the environment variables, just prefix the parameter name with `dhfs_`,
+e.g. for the `host` set an environment variable named `dhfs_host`
 (you may use both upper or lower cases, however, it is standard to define all env
 variables in upper cases).
 

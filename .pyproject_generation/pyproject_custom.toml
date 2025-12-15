@@ -1,19 +1,15 @@
 [project]
-# please adapt to package name
-name = "my_microservice"
+name = "dhfs"
 version = "0.1.0"
-description = "My-Microservice - a short description"
+description = "Data Hub File Service - a service enabling file inspection and re-encryption at Data Hubs"
 dependencies = [
     "typer >= 0.19.1",
     "ghga-service-commons[api] >= 5.0",
-    "ghga-event-schemas >= 10.0",
-    "hexkit[akafka,s3,mongodb] >= 7.0",
+    "hexkit[s3] >= 7.0",
 ]
 
 [project.urls]
-# please adapt to package name
-Repository = "https://github.com/ghga-de/my-microservice"
+Repository = "https://github.com/ghga-de/datahub-file-service"
 
 [project.scripts]
-# please adapt to package name
-my-microservice = "my_microservice.__main__:run"
+dhfs = "dhfs.__main__:run"

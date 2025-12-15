@@ -12,8 +12,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-"""Used to define the location of the main FastAPI app object."""
+"""Entrypoint of the package."""
 
-from dhfs.api.main import app  # noqa: F401
+import asyncio
+
+from ghga_service_commons.api import run_server
+
+from .api.main import app  # noqa: F401
+from .config import CONFIG, Config
+
+
+def run(config: Config = CONFIG):
+    """Run the service."""
+    asyncio.run(run_server(app="dhfs.__main__:app", config=config))
+
+
+if __name__ == "__main__":
+    run()

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Short description of package."""  # Please adapt to package
+"""a service enabling file inspection and re-encryption at Data Hubs"""
 
 from importlib.metadata import version
 
