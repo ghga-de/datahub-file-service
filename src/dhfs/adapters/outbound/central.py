@@ -51,8 +51,15 @@ class CentralClientConfig(BaseSettings):
 class CentralClient(CentralClientPort):
     """This class communicates with GHGA Central to learn about new file uploads"""
 
-    def __init__(self, *, config: CentralClientConfig, storage_alias: str) -> None:
+    def __init__(
+        self,
+        *,
+        config: CentralClientConfig,
+        storage_alias: str,
+        httpx_client: httpx.AsyncClient,
+    ) -> None:
         """Initialize the CentralClient instance"""
+        self._httpx_client = httpx_client
         self._storage_alias = storage_alias
         self._central_public_key = config.central_api_public_key
         self._base_url = str(config.central_api_url).rstrip("/")
@@ -115,8 +122,7 @@ class CentralClient(CentralClientPort):
         """Fetches a list of files that need to be interrogated and re-encrypted."""
         url = f"{self._base_url}/storages/{self._storage_alias}/uploads"
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url=url, headers=self._auth_header())
+        response = await self._httpx_client.get(url=url, headers=self._auth_header())
 
         if response.status_code == 200:
             return self._response_to_file_upload_list(response)
@@ -132,10 +138,9 @@ class CentralClient(CentralClientPort):
         Returns a list of file IDs that may be removed from the bucket.
         """
         # TODO: Add an info log here once final shape of request is hammered out
-        async with httpx.AsyncClient() as client:
-            params = "&".join([f"file_id={file_id}" for file_id in file_ids])
-            url = f"{self._base_url}/uploads/can_remove?{params}"
-            response = await client.get(url=url, headers=self._auth_header())
+        params = "&".join([f"file_id={file_id}" for file_id in file_ids])
+        url = f"{self._base_url}/uploads/can_remove?{params}"
+        response = await self._httpx_client.get(url=url, headers=self._auth_header())
 
         if (status_code := response.status_code) != 200:
             error = self.CentralAPIError(url=url, status_code=status_code)
@@ -144,33 +149,22 @@ class CentralClient(CentralClientPort):
 
         return self._response_to_file_id_list(response)
 
-    async def submit_secret(self, *, file_id: UUID4, secret: bytes) -> None:
-        """Submit a file encryption secret to GHGA Central for a given file ID"""
-        url = f"{self._base_url}/secrets"
-        body = {
-            "file_id": str(file_id),
-            "secret": encrypt(secret.decode(), key=self._central_public_key),
-        }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url=url, headers=self._auth_header(), json=body
-            )
-
-        if (status_code := response.status_code) != 201:
-            error = self.CentralAPIError(url=url, status_code=status_code)
-            log.error(error)
-            raise error
-
     async def submit_interrogation_report(
         self, *, report: models.InterrogationReport
     ) -> None:
         """Submit a file interrogation report to GHGA Central"""
-        url = f"{self._base_url}/interrogation_reports"
         body = report.model_dump(mode="json")
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url=url, headers=self._auth_header(), json=body
+        url = f"{self._base_url}/interrogation_reports"
+
+        # Encrypt secret (core class doesn't know central api public key)
+        if report.secret:
+            body["secret"] = encrypt(
+                report.secret.get_secret_value().decode(), key=self._central_public_key
             )
+
+        response = await self._httpx_client.post(
+            url=url, headers=self._auth_header(), json=body
+        )
 
         if (status_code := response.status_code) != 201:
             error = self.CentralAPIError(url=url, status_code=status_code)

@@ -27,9 +27,7 @@ async def run_interrogator():
     config = Config()  # type: ignore
     configure_logging(config=config)
     async with prepare_interrogator(config=config) as interrogator:
-        new_files = await interrogator.interrogate_new_files()
-        for file in new_files:
-            await interrogator.interrogate_file(file)
+        await interrogator.interrogate_new_files()
 
     raise NotImplementedError()
 

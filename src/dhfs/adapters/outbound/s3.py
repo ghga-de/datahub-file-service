@@ -20,6 +20,7 @@ from dataclasses import dataclass
 import httpx
 from ghga_service_commons.utils.multinode_storage import S3ObjectStorages
 from hexkit.protocols.objstorage import ObjectStorageProtocol
+from pydantic import UUID4
 
 from dhfs.adapters.outbound.http import get_configured_httpx_client
 from dhfs.config import Config
@@ -66,7 +67,13 @@ class S3Client(S3ClientPort):
 
     @asynccontextmanager
     @classmethod
-    async def construct(cls, *, config: Config, object_storages: S3ObjectStorages):
+    async def construct(
+        cls,
+        *,
+        config: Config,
+        object_storages: S3ObjectStorages,
+        httpx_client: httpx.AsyncClient,
+    ):
         """Construct a configured S3Client instance"""
         inbox = await _get_bucket_and_storage(
             object_storages=object_storages, storage_alias=config.inbox_storage_alias
@@ -77,13 +84,12 @@ class S3Client(S3ClientPort):
             storage_alias=config.interrogation_storage_alias,
         )
         interrogation_storage = Storage(*interrogation)
-        async with get_configured_httpx_client(config=config) as httpx_client:
-            yield cls(
-                config=config,
-                inbox_storage=inbox_storage,
-                interrogation_storage=interrogation_storage,
-                httpx_client=httpx_client,
-            )
+        yield cls(
+            config=config,
+            inbox_storage=inbox_storage,
+            interrogation_storage=interrogation_storage,
+            httpx_client=httpx_client,
+        )
 
     def __init__(
         self,
@@ -100,10 +106,10 @@ class S3Client(S3ClientPort):
         self._interrogation_storage = interrogation_storage.object_storage
         self._httpx_client = httpx_client
 
-    async def get_is_file_in_inbox(self, *, object_id: str) -> bool:
-        """Return a bool indicating whether the object exists in the inbox"""
+    async def get_is_file_in_inbox(self, *, file_id: UUID4) -> bool:
+        """Return a bool indicating whether the file exists in the inbox"""
         return await self._inbox_storage.does_object_exist(
-            bucket_id=self._inbox_bucket_id, object_id=object_id
+            bucket_id=self._inbox_bucket_id, object_id=str(file_id)
         )
 
     async def _get_download_url(self, *, object_id: str) -> str:
@@ -128,11 +134,6 @@ class S3Client(S3ClientPort):
         # TODO: error handling
         response = await self._httpx_client.get(download_url, headers=headers)
         return response.content
-
-    async def get_file_envelope(self, *, object_id: str, part_size: int) -> bytes:
-        """Download the first file part, which is assumed to contain the full envelope"""
-        part = await self.fetch_file_part(object_id=object_id, start=0, stop=part_size)
-        return part
 
     async def init_interrogation_bucket_upload(self, *, object_id: str) -> str:
         """Start a multipart upload to the interrogation bucket"""
@@ -163,15 +164,15 @@ class S3Client(S3ClientPort):
         # TODO: error handling
         response = await self._httpx_client.put(upload_url, content=part)
 
-    async def complete_upload(
-        self, *, upload_id: str, object_id: str, expected_etag: str
-    ) -> str:
+    async def complete_upload(self, *, upload_id: str, object_id: str) -> str:
         """Complete a multipart upload for an object in the interrogation bucket.
 
-        Returns None if the operation is successful.
-        Returns a string containing the reason for failure otherwise.
+        Returns the object's ETag (which is the MD5 checksum of the encrypted file).
+
+        If an error occurs, the file will be removed from the interrogation bucket and
+        interrogation will need to be repeated. This process should be made more
+        intelligent in a future update.
         """
-        # TODO: remove file in failure mode
         try:
             await self._interrogation_storage.complete_multipart_upload(
                 upload_id=upload_id,
@@ -183,7 +184,11 @@ class S3Client(S3ClientPort):
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             )
         except Exception as err:
-            error = self.S3Error()
+            error = self.S3Error(
+                f"A problem occurred trying to complete multipart upload {upload_id}"
+                + f" for file {object_id} in the interrogation bucket"
+                + f" ({self._interrogation_bucket_id})."
+            )
             log.error(
                 error,
                 exc_info=True,
@@ -197,9 +202,48 @@ class S3Client(S3ClientPort):
 
         return etag.strip('"')
 
-    class S3Error(RuntimeError):
-        """Raised when there's a problem with an operation in S3"""
+    async def abort_upload(self, *, upload_id: str, object_id: str) -> None:
+        """Abort a multipart upload for an object in the interrogation bucket"""
+        try:
+            await self._interrogation_storage.abort_multipart_upload(
+                upload_id=upload_id,
+                bucket_id=self._interrogation_bucket_id,
+                object_id=object_id,
+            )
+        except Exception as err:
+            error = self.S3Error(
+                f"Failed to abort multipart upload {upload_id} for file {object_id}"
+                + f" in the interrogation bucket ({self._interrogation_bucket_id})."
+            )
+            log.error(
+                error,
+                exc_info=True,
+                extra={
+                    "upload_id": upload_id,
+                    "bucket_id": self._interrogation_bucket_id,
+                    "object_id": object_id,
+                },
+            )
+            raise error from err
 
-        def __init__(self):
-            msg = "A problem with S3 prevented proper upload completion"
-            super().__init__(msg)
+    async def remove_file(self, *, object_id: str) -> None:
+        """Remove a file from the interrogation bucket"""
+        try:
+            await self._interrogation_storage.delete_object(
+                bucket_id=self._interrogation_bucket_id,
+                object_id=object_id,
+            )
+        except Exception as err:
+            error = self.S3Error(
+                f"Failed to delete {object_id} from the interrogation bucket"
+                + f" ({self._interrogation_bucket_id})."
+            )
+            log.error(
+                error,
+                exc_info=True,
+                extra={
+                    "bucket_id": self._interrogation_bucket_id,
+                    "object_id": object_id,
+                },
+            )
+            raise error from err

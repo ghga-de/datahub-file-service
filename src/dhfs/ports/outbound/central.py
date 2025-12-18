@@ -59,11 +59,6 @@ class CentralClientPort(ABC):
         ...
 
     @abstractmethod
-    async def submit_secret(self, *, file_id: UUID4, secret: bytes) -> None:
-        """Submit a file encryption secret to GHGA Central for a given file ID"""
-        ...
-
-    @abstractmethod
     async def submit_interrogation_report(self, *, report: InterrogationReport) -> None:
         """Submit a file interrogation report to GHGA Central"""
         ...

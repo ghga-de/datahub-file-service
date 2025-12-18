@@ -21,6 +21,7 @@ from contextlib import asynccontextmanager, nullcontext
 from ghga_service_commons.utils.multinode_storage import S3ObjectStorages
 
 from dhfs.adapters.outbound.central import CentralClient
+from dhfs.adapters.outbound.http import get_configured_httpx_client
 from dhfs.adapters.outbound.s3 import S3Client
 from dhfs.config import Config
 from dhfs.core.interrogator import Interrogator
@@ -30,13 +31,18 @@ from dhfs.ports.outbound.interrogator import InterrogatorPort
 @asynccontextmanager
 async def prepare_interrogator(*, config: Config) -> AsyncGenerator[InterrogatorPort]:
     """Produces a configured InterrogatorPort-compatible class"""
-    central_client = CentralClient(
-        config=config, storage_alias=config.inbox_storage_alias
-    )
     object_storages = S3ObjectStorages(config=config)
-    async with S3Client.construct(
-        config=config, object_storages=object_storages
-    ) as s3_client:
+    async with (
+        get_configured_httpx_client(config=config) as httpx_client,
+        S3Client.construct(
+            config=config, object_storages=object_storages, httpx_client=httpx_client
+        ) as s3_client,
+    ):
+        central_client = CentralClient(
+            config=config,
+            storage_alias=config.inbox_storage_alias,
+            httpx_client=httpx_client,
+        )
         yield Interrogator(
             config=config,
             central_client=central_client,

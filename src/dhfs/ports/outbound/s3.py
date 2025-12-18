@@ -18,12 +18,16 @@
 from abc import ABC, abstractmethod
 
 from ghga_service_commons.utils.multinode_storage import S3ObjectStorages
+from pydantic import UUID4
 
 from dhfs.config import Config
 
 
 class S3ClientPort(ABC):
     """Performs S3 upload/download operations with error handling"""
+
+    class S3Error(RuntimeError):
+        """Raised when there's a problem with an operation in S3"""
 
     @abstractmethod
     @classmethod
@@ -32,17 +36,12 @@ class S3ClientPort(ABC):
         ...
 
     @abstractmethod
-    async def get_is_file_in_inbox(self, *, object_id: str) -> bool:
+    async def get_is_file_in_inbox(self, *, file_id: UUID4) -> bool:
         """Return a bool indicating whether the object exists in the inbox"""
 
     @abstractmethod
     async def fetch_file_part(self, *, object_id: str, start: int, stop: int) -> bytes:
         """Download a single file part"""
-        ...
-
-    @abstractmethod
-    async def get_file_envelope(self, *, object_id: str, part_size: int) -> bytes:
-        """Download the first file part, which is assumed to contain the full envelope"""
         ...
 
     @abstractmethod
@@ -64,8 +63,16 @@ class S3ClientPort(ABC):
         ...
 
     @abstractmethod
-    async def complete_upload(
-        self, *, upload_id: str, object_id: str, expected_etag: str
-    ):
+    async def complete_upload(self, *, upload_id: str, object_id: str) -> str:
         """Complete a multipart upload for an object in the interrogation bucket"""
+        ...
+
+    @abstractmethod
+    async def abort_upload(self, *, upload_id: str, object_id: str) -> None:
+        """Abort a multipart upload for an object in the interrogation bucket"""
+        ...
+
+    @abstractmethod
+    async def remove_file(self, *, object_id: str) -> None:
+        """Remove a file from the interrogation bucket"""
         ...

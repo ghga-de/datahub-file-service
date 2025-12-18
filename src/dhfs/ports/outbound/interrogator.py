@@ -37,15 +37,22 @@ class InterrogatorPort(ABC):
             msg = f"The file {file_id} was not found in the inbox"
             super().__init__(msg)
 
+    class ReencryptionError(CantCompleteError):
+        """Raised when there's a problem during re-encryption. This is more likely
+        caused by a code flaw than a problem with the file itself.
+        """
+
     class InterrogationError(RuntimeError):
         """Base error class for errors that ultimately signal interrogation failure"""
 
+    class FileEnvelopeDecryptionError(InterrogationError):
+        """Raised when the file envelope can't be decrypted"""
+
+    class DecryptionError(InterrogationError):
+        """Raised when a file part can't be decrypted"""
+
     class ChecksumMismatchError(InterrogationError):
         """Raised when the MD5 checksum of the encrypted content doesn't match the expected value"""
-
-        def __init__(self):
-            msg = "S3 ETag didn't match the expected MD5 checksum"
-            super().__init__(msg)
 
     @abstractmethod
     async def interrogate_new_files(self) -> list[FileUpload]:
