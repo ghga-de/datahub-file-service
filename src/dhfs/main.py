@@ -17,12 +17,19 @@
 from hexkit.log import configure_logging
 
 from dhfs.config import Config
+from dhfs.inject import prepare_interrogator
+
+# TODO: OTEL
 
 
 async def run_interrogator():
     """Run the file interrogation and re-encryption process."""
     config = Config()  # type: ignore
     configure_logging(config=config)
+    async with prepare_interrogator(config=config) as interrogator:
+        new_files = await interrogator.interrogate_new_files()
+        for file in new_files:
+            await interrogator.interrogate_file(file)
 
     raise NotImplementedError()
 

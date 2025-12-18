@@ -6,6 +6,7 @@ dependencies = [
     "typer >= 0.19.1",
     "ghga-service-commons[http,objectstorage] >= 5.0",
     "hexkit[s3] >= 7.0",
+    "crypt4gh >= 1.7",
 ]
 
 [project.urls]
