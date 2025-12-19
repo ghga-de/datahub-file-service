@@ -35,7 +35,7 @@ class S3CleanerPort(ABC):
 
     @abstractmethod
     async def scan_and_clean(self):
-        """Get a list of all objects currently in the interrogation bucket
-        and remove the ones that may be removed.
+        """Get a list of all objects in the 'interrogation' bucket, then query the
+        GHGA Central API and delete the objects which that API says may be deleted.
         """
         ...

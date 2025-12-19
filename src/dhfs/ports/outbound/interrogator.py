@@ -17,7 +17,7 @@
 
 from abc import ABC, abstractmethod
 
-from pydantic import UUID4
+from pydantic import UUID4, SecretBytes
 
 from dhfs.models import FileUpload
 
@@ -55,12 +55,12 @@ class InterrogatorPort(ABC):
         """Raised when the MD5 checksum of the encrypted content doesn't match the expected value"""
 
     @abstractmethod
-    async def interrogate_new_files(self) -> list[FileUpload]:
-        """Fetches a list of files that need to be checked and re-encrypted"""
+    async def interrogate_new_files(self) -> None:
+        """Query the GHGA Central API for new files that need to be re-encrypted"""
         ...
 
     @abstractmethod
-    async def interrogate_file(self, file_upload: FileUpload):
+    async def interrogate_file(self, file_upload: FileUpload) -> None:
         """Inspect and re-encrypt an newly uploaded file"""
 
     @abstractmethod
@@ -68,6 +68,7 @@ class InterrogatorPort(ABC):
         self,
         *,
         file_id: UUID4,
+        secret: SecretBytes,
         encrypted_parts_md5: list[str],
         encrypted_parts_sha256: list[str],
     ) -> None:

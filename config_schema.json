@@ -97,6 +97,118 @@
   "additionalProperties": false,
   "description": "Modifies the original Settings class provided by the user",
   "properties": {
+    "client_cache_capacity": {
+      "default": 128,
+      "description": "Maximum number of entries to store in the cache. Older entries are evicted once this limit is reached.",
+      "exclusiveMinimum": 0,
+      "title": "Client Cache Capacity",
+      "type": "integer"
+    },
+    "client_cache_ttl": {
+      "default": 60,
+      "description": "Number of seconds after which a stored response is considered stale.",
+      "minimum": 0,
+      "title": "Client Cache Ttl",
+      "type": "integer"
+    },
+    "client_cacheable_methods": {
+      "default": [
+        "POST",
+        "GET"
+      ],
+      "description": "HTTP methods for which responses are allowed to be cached.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Client Cacheable Methods",
+      "type": "array"
+    },
+    "client_cacheable_status_codes": {
+      "default": [
+        200,
+        201
+      ],
+      "description": "HTTP response status code for which responses are allowed to be cached.",
+      "items": {
+        "type": "integer"
+      },
+      "title": "Client Cacheable Status Codes",
+      "type": "array"
+    },
+    "client_exponential_backoff_max": {
+      "default": 60,
+      "description": "Maximum number of seconds to wait between retries when using exponential backoff retry strategies. The client timeout might need to be adjusted accordingly.",
+      "minimum": 0,
+      "title": "Client Exponential Backoff Max",
+      "type": "integer"
+    },
+    "client_num_retries": {
+      "default": 3,
+      "description": "Number of times to retry failed API calls.",
+      "minimum": 0,
+      "title": "Client Num Retries",
+      "type": "integer"
+    },
+    "client_retry_status_codes": {
+      "default": [
+        408,
+        429,
+        500,
+        502,
+        503,
+        504
+      ],
+      "description": "List of status codes that should trigger retrying a request.",
+      "items": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "title": "Client Retry Status Codes",
+      "type": "array"
+    },
+    "client_reraise_from_retry_error": {
+      "default": true,
+      "description": "Specifies if the exception wrapped in the final RetryError is reraised or the RetryError is returned as is.",
+      "title": "Client Reraise From Retry Error",
+      "type": "boolean"
+    },
+    "per_request_jitter": {
+      "default": 0.0,
+      "description": "Max amount of jitter (in seconds) to add to each request.",
+      "minimum": 0,
+      "title": "Per Request Jitter",
+      "type": "number"
+    },
+    "retry_after_applicable_for_num_requests": {
+      "default": 1,
+      "description": "Amount of requests after which the stored delay from a 429 response is ignored again. Can be useful to adjust if concurrent requests are fired in quick succession.",
+      "exclusiveMinimum": 0,
+      "title": "Retry After Applicable For Num Requests",
+      "type": "integer"
+    },
+    "data_hub_private_key": {
+      "description": "The Data Hub's private key for signing auth tokens and decrypting files",
+      "examples": [
+        "{\"crv\": \"P-256\", \"kty\": \"EC\", \"x\": \"...\", \"y\": \"...\"}"
+      ],
+      "format": "password",
+      "title": "Data Hub Private Key",
+      "type": "string",
+      "writeOnly": true
+    },
+    "central_api_public_key": {
+      "description": "The Crypt4GH public key used by the Central API",
+      "title": "Central Api Public Key",
+      "type": "string"
+    },
+    "central_api_url": {
+      "description": "The base URL used to connect to to the GHGA Central API",
+      "format": "uri",
+      "maxLength": 2083,
+      "minLength": 1,
+      "title": "Central Api Url",
+      "type": "string"
+    },
     "object_storages": {
       "additionalProperties": {
         "$ref": "#/$defs/S3ObjectStorageNodeConfig"
@@ -154,9 +266,24 @@
       "description": "Whether to include exception tracebacks in log messages.",
       "title": "Log Traceback",
       "type": "boolean"
+    },
+    "inbox_storage_alias": {
+      "default": "inbox",
+      "description": "The storage alias used to refer to the S3 'inbox' bucket and credentials, as configured in the `object_storages` field.",
+      "title": "Inbox Storage Alias",
+      "type": "string"
+    },
+    "interrogation_storage_alias": {
+      "default": "interrogation",
+      "description": "The storage alias used to refer to the S3 'interrogation' bucket and credentials, as configured in the `object_storages` field.",
+      "title": "Interrogation Storage Alias",
+      "type": "string"
     }
   },
   "required": [
+    "data_hub_private_key",
+    "central_api_public_key",
+    "central_api_url",
     "object_storages",
     "service_instance_id"
   ],

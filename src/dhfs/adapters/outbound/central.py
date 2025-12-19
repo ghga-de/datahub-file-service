@@ -22,17 +22,17 @@ import httpx
 from ghga_service_commons.utils.crypt import encrypt
 from ghga_service_commons.utils.jwt_helpers import sign_and_serialize_token
 from jwcrypto.jwk import JWK
-from pydantic import UUID4, Field, HttpUrl, SecretStr, ValidationError
-from pydantic_settings import BaseSettings
+from pydantic import Field, HttpUrl, ValidationError
 
 from dhfs import models
 from dhfs.constants import AUTH_TOKEN_VALID_SECONDS, JWT_AUD, JWT_ISS
+from dhfs.core.auth import DataHubAuthConfig
 from dhfs.ports.outbound.central import CentralClientPort
 
 log = logging.getLogger(__name__)
 
 
-class CentralClientConfig(BaseSettings):
+class CentralClientConfig(DataHubAuthConfig):
     """Configuration required for the CentralClient class"""
 
     central_api_public_key: str = Field(
@@ -40,11 +40,6 @@ class CentralClientConfig(BaseSettings):
     )
     central_api_url: HttpUrl = Field(
         ..., description="The base URL used to connect to to the GHGA Central API"
-    )
-    data_hub_signing_key: SecretStr = Field(
-        ...,
-        description="The Data Hub's private key for signing auth tokens",
-        examples=['{"crv": "P-256", "kty": "EC", "x": "...", "y": "..."}'],
     )
 
 
@@ -64,7 +59,7 @@ class CentralClient(CentralClientPort):
         self._central_public_key = config.central_api_public_key
         self._base_url = str(config.central_api_url).rstrip("/")
         self._signing_key = JWK.from_json(
-            config.data_hub_signing_key.get_secret_value()
+            config.data_hub_private_key.get_secret_value()
         )
         if not self._signing_key.has_private:
             key_error = KeyError("No private token-signing key found.")

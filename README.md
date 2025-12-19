@@ -49,6 +49,28 @@ dhfs --help
 ### Parameters
 
 The service requires the following configuration parameters:
+- <a id="properties/client_cache_capacity"></a>**`client_cache_capacity`** *(integer)*: Maximum number of entries to store in the cache. Older entries are evicted once this limit is reached. Exclusive minimum: `0`. Default: `128`.
+- <a id="properties/client_cache_ttl"></a>**`client_cache_ttl`** *(integer)*: Number of seconds after which a stored response is considered stale. Minimum: `0`. Default: `60`.
+- <a id="properties/client_cacheable_methods"></a>**`client_cacheable_methods`** *(array)*: HTTP methods for which responses are allowed to be cached. Default: `["POST", "GET"]`.
+  - <a id="properties/client_cacheable_methods/items"></a>**Items** *(string)*
+- <a id="properties/client_cacheable_status_codes"></a>**`client_cacheable_status_codes`** *(array)*: HTTP response status code for which responses are allowed to be cached. Default: `[200, 201]`.
+  - <a id="properties/client_cacheable_status_codes/items"></a>**Items** *(integer)*
+- <a id="properties/client_exponential_backoff_max"></a>**`client_exponential_backoff_max`** *(integer)*: Maximum number of seconds to wait between retries when using exponential backoff retry strategies. The client timeout might need to be adjusted accordingly. Minimum: `0`. Default: `60`.
+- <a id="properties/client_num_retries"></a>**`client_num_retries`** *(integer)*: Number of times to retry failed API calls. Minimum: `0`. Default: `3`.
+- <a id="properties/client_retry_status_codes"></a>**`client_retry_status_codes`** *(array)*: List of status codes that should trigger retrying a request. Default: `[408, 429, 500, 502, 503, 504]`.
+  - <a id="properties/client_retry_status_codes/items"></a>**Items** *(integer)*: Minimum: `0`.
+- <a id="properties/client_reraise_from_retry_error"></a>**`client_reraise_from_retry_error`** *(boolean)*: Specifies if the exception wrapped in the final RetryError is reraised or the RetryError is returned as is. Default: `true`.
+- <a id="properties/per_request_jitter"></a>**`per_request_jitter`** *(number)*: Max amount of jitter (in seconds) to add to each request. Minimum: `0`. Default: `0.0`.
+- <a id="properties/retry_after_applicable_for_num_requests"></a>**`retry_after_applicable_for_num_requests`** *(integer)*: Amount of requests after which the stored delay from a 429 response is ignored again. Can be useful to adjust if concurrent requests are fired in quick succession. Exclusive minimum: `0`. Default: `1`.
+- <a id="properties/data_hub_private_key"></a>**`data_hub_private_key`** *(string, format: password, required and write-only)*: The Data Hub's private key for signing auth tokens and decrypting files.
+
+  Examples:
+  ```json
+  "{\"crv\": \"P-256\", \"kty\": \"EC\", \"x\": \"...\", \"y\": \"...\"}"
+  ```
+
+- <a id="properties/central_api_public_key"></a>**`central_api_public_key`** *(string, required)*: The Crypt4GH public key used by the Central API.
+- <a id="properties/central_api_url"></a>**`central_api_url`** *(string, format: uri, required)*: The base URL used to connect to to the GHGA Central API. Length must be between 1 and 2083 (inclusive).
 - <a id="properties/object_storages"></a>**`object_storages`** *(object, required)*: Can contain additional properties.
   - <a id="properties/object_storages/additionalProperties"></a>**Additional properties**: Refer to *[#/$defs/S3ObjectStorageNodeConfig](#%24defs/S3ObjectStorageNodeConfig)*.
 - <a id="properties/log_level"></a>**`log_level`** *(string)*: The minimum log level to capture. Must be one of: "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", or "TRACE". Default: `"INFO"`.
@@ -75,6 +97,8 @@ The service requires the following configuration parameters:
   ```
 
 - <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
+- <a id="properties/inbox_storage_alias"></a>**`inbox_storage_alias`** *(string)*: The storage alias used to refer to the S3 'inbox' bucket and credentials, as configured in the `object_storages` field. Default: `"inbox"`.
+- <a id="properties/interrogation_storage_alias"></a>**`interrogation_storage_alias`** *(string)*: The storage alias used to refer to the S3 'interrogation' bucket and credentials, as configured in the `object_storages` field. Default: `"interrogation"`.
 ## Definitions
 
 - <a id="%24defs/S3Config"></a>**`S3Config`** *(object)*: S3-specific config params.

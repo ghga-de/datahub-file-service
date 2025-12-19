@@ -17,10 +17,7 @@
 
 from abc import ABC, abstractmethod
 
-from ghga_service_commons.utils.multinode_storage import S3ObjectStorages
 from pydantic import UUID4
-
-from dhfs.config import Config
 
 
 class S3ClientPort(ABC):
@@ -28,12 +25,6 @@ class S3ClientPort(ABC):
 
     class S3Error(RuntimeError):
         """Raised when there's a problem with an operation in S3"""
-
-    @abstractmethod
-    @classmethod
-    async def construct(cls, *, config: Config, object_storages: S3ObjectStorages):
-        """Construct a configured S3Client instance"""
-        ...
 
     @abstractmethod
     async def get_is_file_in_inbox(self, *, file_id: UUID4) -> bool:

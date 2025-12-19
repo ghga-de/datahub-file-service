@@ -16,7 +16,7 @@
 """Dependency injection and component configuration"""
 
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager, nullcontext
+from contextlib import asynccontextmanager
 
 from ghga_service_commons.utils.multinode_storage import S3ObjectStorages
 

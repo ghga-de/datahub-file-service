@@ -1,3 +1,26 @@
+central_api_public_key: dWoWghAEVPcpHILEb5drJx59nF+of6YKuAOhKRpmegY=
+central_api_url: http://127.0.0.1:8000/central
+client_cache_capacity: 128
+client_cache_ttl: 60
+client_cacheable_methods:
+- POST
+- GET
+client_cacheable_status_codes:
+- 200
+- 201
+client_exponential_backoff_max: 60
+client_num_retries: 3
+client_reraise_from_retry_error: true
+client_retry_status_codes:
+- 408
+- 429
+- 500
+- 502
+- 503
+- 504
+data_hub_private_key: '**********'
+inbox_storage_alias: inbox
+interrogation_storage_alias: interrogation
 log_format: null
 log_level: INFO
 log_traceback: true
@@ -18,5 +41,7 @@ object_storages:
       s3_endpoint_url: http://dcs:4566
       s3_secret_access_key: '**********'
       s3_session_token: null
+per_request_jitter: 0.0
+retry_after_applicable_for_num_requests: 1
 service_instance_id: '1'
 service_name: dhfs

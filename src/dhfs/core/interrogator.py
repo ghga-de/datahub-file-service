@@ -13,14 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Core logic for file re-encryption and interrogation"""
 
 import io
 import logging
-import math
 import os
 
 import crypt4gh.header
-import crypt4gh.lib
 from hexkit.utils import now_utc_ms_prec
 from nacl.bindings import (
     crypto_aead_chacha20poly1305_ietf_decrypt as decrypt_algo,
@@ -33,7 +32,7 @@ from pydantic import UUID4, SecretBytes
 from dhfs.config import Config
 from dhfs.constants import ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH
 from dhfs.core.checksums import Checksums
-from dhfs.models import Envelope, FileUpload, InterrogationReport, PartRange
+from dhfs.models import FileUpload, InterrogationReport, PartRange
 from dhfs.ports.outbound.central import CentralClientPort
 from dhfs.ports.outbound.interrogator import InterrogatorPort
 from dhfs.ports.outbound.s3 import S3ClientPort
@@ -55,10 +54,10 @@ class Interrogator(InterrogatorPort):
         self._inbox_storage_alias = config.inbox_storage_alias
         self._interrogation_storage_alias = config.interrogation_storage_alias
         self._central_client = central_client
-        # self._data_hub_private_key = config.data_hub_private_key
+        self._data_hub_private_key = config.data_hub_private_key
         self._s3_client = s3_client
 
-    async def interrogate_new_files(self):
+    async def interrogate_new_files(self) -> None:
         """Query the GHGA Central API for new files that need to be re-encrypted"""
         new_files = await self._central_client.fetch_new_uploads()
         for file in new_files:
@@ -217,7 +216,7 @@ class Interrogator(InterrogatorPort):
             )
         return checksums
 
-    async def interrogate_file(self, file_upload: FileUpload):
+    async def interrogate_file(self, file_upload: FileUpload) -> None:
         """Inspect and re-encrypt an newly uploaded file"""
         # Extract the file encryption secret and content offset
         old_secret = await self._fetch_original_secret(file_upload=file_upload)

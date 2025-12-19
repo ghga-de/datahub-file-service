@@ -17,8 +17,6 @@
 
 from abc import ABC, abstractmethod
 
-from pydantic import UUID4
-
 from dhfs.models import FileUpload, InterrogationReport
 
 __all__ = ["CentralClientPort"]

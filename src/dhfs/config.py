@@ -19,16 +19,21 @@ from ghga_service_commons.transports import CompositeCacheConfig
 from ghga_service_commons.utils.multinode_storage import S3ObjectStoragesConfig
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
-from pydantic import Field, SecretStr
+from pydantic import Field
 
 from dhfs.adapters.outbound.central import CentralClientConfig
+from dhfs.core.auth import DataHubAuthConfig
 
 SERVICE_NAME: str = "dhfs"
 
 
 @config_from_yaml(prefix=SERVICE_NAME)
 class Config(
-    LoggingConfig, S3ObjectStoragesConfig, CentralClientConfig, CompositeCacheConfig
+    LoggingConfig,
+    S3ObjectStoragesConfig,
+    CentralClientConfig,
+    CompositeCacheConfig,
+    DataHubAuthConfig,
 ):
     """Config parameters and their defaults."""
 
@@ -48,9 +53,6 @@ class Config(
     )
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
-    )
-    data_hub_private_key: SecretStr = Field(
-        default=..., description="The Crypt4GH private key specific to the Data Hub"
     )
 
 

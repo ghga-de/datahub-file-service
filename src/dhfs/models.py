@@ -36,8 +36,7 @@ class PartRange:
     stop: int
 
 
-@dataclass
-class FileUpload:
+class FileUpload(BaseModel):
     """Represents a file that needs to be interrogated and re-encrypted"""
 
     id: UUID4
@@ -47,8 +46,8 @@ class FileUpload:
     encrypted_size: int
     part_size: int
 
-    @computed_field
     @cached_property
+    @computed_field
     def offset(self) -> int:
         """Calculate the size of the file encryption envelope/where content begins"""
         chunk_size = NONCE_LENGTH + crypt4gh.lib.SEGMENT_SIZE + AUTH_TAG_LENGTH
@@ -70,7 +69,7 @@ class FileUpload:
             processed += crypt4gh.lib.SEGMENT_SIZE
             processed += AUTH_TAG_LENGTH  # auth tag
             end = min(processed, file_size)
-            ranges.append((start, end))
+            ranges.append(PartRange(start, end))
         yield from ranges
 
 
