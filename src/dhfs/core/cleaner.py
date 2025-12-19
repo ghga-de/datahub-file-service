@@ -34,9 +34,9 @@ class S3Cleaner(S3CleanerPort):
     def __init__(
         self,
         *,
+        config: Config,
         central_client: CentralClientPort,
         object_storages: S3ObjectStorages,
-        config: Config,
     ):
         self._client = central_client
         self._object_storages = object_storages

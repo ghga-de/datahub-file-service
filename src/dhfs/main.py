@@ -17,7 +17,7 @@
 from hexkit.log import configure_logging
 
 from dhfs.config import Config
-from dhfs.inject import prepare_interrogator
+from dhfs.inject import prepare_interrogation_bucket_cleaner, prepare_interrogator
 
 # TODO: OTEL
 
@@ -29,12 +29,11 @@ async def run_interrogator():
     async with prepare_interrogator(config=config) as interrogator:
         await interrogator.interrogate_new_files()
 
-    raise NotImplementedError()
-
 
 async def perform_cleanup():
     """Run the S3 'interrogation' bucket cleanup routine."""
     config = Config()  # type: ignore
     configure_logging(config=config)
 
-    raise NotImplementedError()
+    async with prepare_interrogation_bucket_cleaner(config=config) as cleaner:
+        await cleaner.scan_and_clean()
