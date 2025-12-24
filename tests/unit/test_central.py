@@ -208,8 +208,8 @@ async def test_report_submission(config, central_client, httpx_mock: HTTPXMock):
         assert interrogated_at - now_utc_ms_prec() < timedelta(seconds=3)
         if body["passed"]:
             secret = decrypt(body["secret"], CENTRAL_CRYPT4GH_KEYPAIR.private)
-            secret = base64.urlsafe_b64decode(secret)
-            assert secret == success_report.secret.get_secret_value()  # type: ignore
+            decoded_secret = base64.urlsafe_b64decode(secret)
+            assert decoded_secret == success_report.secret.get_secret_value()  # type: ignore
             assert body["encrypted_parts_md5"]
             assert body["encrypted_parts_sha256"]
             assert not body["reason"]

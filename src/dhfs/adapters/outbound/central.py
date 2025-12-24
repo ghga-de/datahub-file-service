@@ -155,8 +155,8 @@ class CentralClient(CentralClientPort):
         # Encrypt secret (core class doesn't know central api public key)
         if report.secret:
             secret = report.secret.get_secret_value()
-            secret = base64.urlsafe_b64encode(secret).decode("utf-8")
-            body["secret"] = encrypt(secret, key=self._central_public_key)
+            encoded_secret = base64.urlsafe_b64encode(secret).decode("utf-8")
+            body["secret"] = encrypt(encoded_secret, key=self._central_public_key)
 
         response = await self._httpx_client.post(
             url=url, headers=self._auth_header(), json=body

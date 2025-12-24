@@ -292,9 +292,10 @@ class S3Client(S3ClientPort):
             log.error(md5_error)
             raise md5_error
         if response.status_code != 200:
+            detail = response.content.decode()
             upload_error = self.UploadError(
                 f"Failed to upload part {part_no} for file {object_id}. Status"
-                + f" code is {response.status_code}. Detail: {response.content}"
+                + f" code is {response.status_code}. Detail: {detail}"
             )
             log.error(upload_error)
             raise upload_error
