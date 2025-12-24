@@ -51,12 +51,12 @@ class CentralClient(CentralClientPort):
         self,
         *,
         config: CentralClientConfig,
-        storage_alias: str,
+        inbox_storage_alias: str,
         httpx_client: httpx.AsyncClient,
     ) -> None:
         """Initialize the CentralClient instance"""
         self._httpx_client = httpx_client
-        self._storage_alias = storage_alias
+        self._storage_alias = inbox_storage_alias
         self._central_public_key = config.central_api_public_key
         self._base_url = str(config.central_api_url).rstrip("/")
         self._signing_key = JWK.from_json(
