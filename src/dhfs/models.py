@@ -18,6 +18,7 @@
 from collections.abc import Generator
 from dataclasses import dataclass
 from functools import cached_property
+from math import ceil
 
 import crypt4gh.lib
 from ghga_service_commons.utils.utc_dates import UTCDatetime
@@ -45,6 +46,13 @@ class FileUpload(BaseModel):
     decrypted_size: int
     encrypted_size: int
     part_size: int
+
+    @cached_property
+    @computed_field
+    def encrypted_part_count(self) -> int:
+        """Calculate the number of file parts in the re-encrypted object"""
+        x = (self.decrypted_size - self.offset) / self.part_size
+        return ceil(x)
 
     @cached_property
     @computed_field
