@@ -71,7 +71,7 @@ class Interrogator(InterrogatorPort):
 
     async def _fetch_original_secret(self, *, file_upload: FileUpload) -> SecretBytes:
         """Fetch the original file encryption secret"""
-        envelope = await self._s3_client.fetch_file_part(
+        envelope = await self._s3_client.fetch_file_content_range(
             object_id=str(file_upload.id), start=0, stop=file_upload.offset
         )
         return self._extract_secret(envelope=envelope)
@@ -88,7 +88,7 @@ class Interrogator(InterrogatorPort):
     async def _fetch_and_decrypt_part(
         self, *, object_id: str, part_range: PartRange, secret: SecretBytes
     ) -> bytes:
-        part = await self._s3_client.fetch_file_part(
+        part = await self._s3_client.fetch_file_content_range(
             object_id=object_id, start=part_range.start, stop=part_range.stop
         )
         return self._decrypt_part(encrypted_part=part, secret=secret)
@@ -252,7 +252,9 @@ class Interrogator(InterrogatorPort):
 
         # Complete upload
         actual_etag = await self._s3_client.complete_upload(
-            upload_id=upload_id, object_id=object_id
+            upload_id=upload_id,
+            object_id=object_id,
+            part_count=file_upload.encrypted_part_count,
         )
 
         # Check integrity of final object in S3
