@@ -161,7 +161,7 @@ class S3Client(S3ClientPort):
         response = await self._httpx_client.get(download_url, headers=headers)
 
         status_code = response.status_code
-        if status_code == 200:
+        if status_code in (200, 206):
             return response.content
 
         # Raise a generic download error if the status code is not 200
