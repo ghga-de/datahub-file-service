@@ -22,7 +22,7 @@ from ghga_service_commons.utils.multinode_storage import S3ObjectStorages
 
 from dhfs.adapters.outbound.central import CentralClient
 from dhfs.adapters.outbound.http import get_configured_httpx_client
-from dhfs.adapters.outbound.s3 import S3Client
+from dhfs.adapters.outbound.s3 import get_s3_client
 from dhfs.config import Config
 from dhfs.core.cleaner import S3Cleaner
 from dhfs.core.interrogator import Interrogator
@@ -34,15 +34,13 @@ from dhfs.ports.outbound.interrogator import InterrogatorPort
 async def prepare_interrogator(*, config: Config) -> AsyncGenerator[InterrogatorPort]:
     """Produces a configured InterrogatorPort-compatible instance"""
     object_storages = S3ObjectStorages(config=config)
-    async with (
-        get_configured_httpx_client(config=config) as httpx_client,
-        S3Client.construct(
+    async with get_configured_httpx_client(config=config, cached=True) as httpx_client:
+        s3_client = await get_s3_client(
             config=config, object_storages=object_storages, httpx_client=httpx_client
-        ) as s3_client,
-    ):
+        )
         central_client = CentralClient(
             config=config,
-            storage_alias=config.inbox_storage_alias,
+            inbox_storage_alias=config.inbox_storage_alias,
             httpx_client=httpx_client,
         )
         yield Interrogator(
@@ -58,14 +56,17 @@ async def prepare_interrogation_bucket_cleaner(
 ) -> AsyncGenerator[S3CleanerPort]:
     """Produces a configured S3CleanerPort-compatible instance"""
     object_storages = S3ObjectStorages(config=config)
-    async with get_configured_httpx_client(config=config) as httpx_client:
+    async with get_configured_httpx_client(config=config, cached=False) as httpx_client:
+        s3_client = await get_s3_client(
+            config=config, object_storages=object_storages, httpx_client=httpx_client
+        )
         central_client = CentralClient(
             config=config,
-            storage_alias=config.inbox_storage_alias,
+            inbox_storage_alias=config.inbox_storage_alias,
             httpx_client=httpx_client,
         )
         yield S3Cleaner(
             config=config,
             central_client=central_client,
-            object_storages=object_storages,
+            s3_client=s3_client,
         )
