@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: Define port
-# TODO: Write module doc string
+"""HTTP request logic"""
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -23,15 +23,65 @@ from ghga_service_commons.transports import (
     CompositeCacheConfig,
     CompositeTransportFactory,
 )
+from tenacity import RetryError
+
+__all__ = [
+    "ConnectionFailedError",
+    "RequestFailedError",
+    "check_for_request_errors",
+    "get_configured_httpx_client",
+    "raise_if_connection_failed",
+]
 
 
 @asynccontextmanager
 async def get_configured_httpx_client(
-    *, config: CompositeCacheConfig
+    *, config: CompositeCacheConfig, cached: bool
 ) -> AsyncGenerator[httpx.AsyncClient]:
     """Produce an httpx AsyncClient with configured caching and rate limiting behavior"""
-    transport = CompositeTransportFactory.create_cached_ratelimiting_retry_transport(
-        config=config
+    transport = (
+        CompositeTransportFactory.create_cached_ratelimiting_retry_transport(
+            config=config
+        )
+        if cached
+        else CompositeTransportFactory.create_ratelimiting_retry_transport(
+            config=config
+        )
     )
     async with httpx.AsyncClient(transport=transport) as client:
         yield client
+
+
+class RequestFailedError(RuntimeError):
+    """Thrown when a request fails without returning a response code"""
+
+    def __init__(self, *, url: str):
+        message = f"The request to '{url}' failed."
+        super().__init__(message)
+
+
+class ConnectionFailedError(RuntimeError):
+    """Thrown when a ConnectError or ConnectTimeout error is raised by httpx"""
+
+    def __init__(self, *, url: str, reason: str):
+        message = f"Request to '{url}' failed to connect. Reason: {reason}"
+        super().__init__(message)
+
+
+def raise_if_connection_failed(request_error: httpx.RequestError, url: str):
+    """Check if request exception is caused by hitting max retries and raise accordingly"""
+    if isinstance(request_error, (httpx.ConnectError, httpx.ConnectTimeout)):
+        connection_failure = str(request_error.args[0])
+        raise ConnectionFailedError(url=url, reason=connection_failure)
+
+
+def check_for_request_errors(retry_error: RetryError, url: str):
+    """Examine an instance of a RetryError to see if it contains an httpx.RequestError
+
+    Raises a ConnectionFailedError if there's a ConnectError or ConnectTimeout, and
+    re-raises all other httpx.RequestError types as a RequestFailedError.
+    """
+    exception = retry_error.last_attempt.exception()
+    if exception and isinstance(exception, httpx.RequestError):
+        raise_if_connection_failed(request_error=exception, url=url)
+        raise RequestFailedError(url=url) from retry_error
