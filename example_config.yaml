@@ -14,7 +14,6 @@ client_reraise_from_retry_error: true
 client_retry_status_codes:
 - 408
 - 429
-- 500
 - 502
 - 503
 - 504
@@ -30,7 +29,7 @@ object_storages:
     credentials:
       aws_config_ini: null
       s3_access_key_id: test
-      s3_endpoint_url: http://dcs:4566
+      s3_endpoint_url: http://localstack:4566
       s3_secret_access_key: '**********'
       s3_session_token: null
   interrogation:
@@ -38,7 +37,7 @@ object_storages:
     credentials:
       aws_config_ini: null
       s3_access_key_id: test
-      s3_endpoint_url: http://dcs:4566
+      s3_endpoint_url: http://localstack:4566
       s3_secret_access_key: '**********'
       s3_session_token: null
 per_request_jitter: 0.0
