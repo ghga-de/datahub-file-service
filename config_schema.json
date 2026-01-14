@@ -97,6 +97,28 @@
   "additionalProperties": false,
   "description": "Modifies the original Settings class provided by the user",
   "properties": {
+    "data_hub_crypt4gh_private_key_path": {
+      "description": "Path to the Data Hub's Crypt4GH private key file",
+      "examples": [
+        "./key.sec"
+      ],
+      "format": "path",
+      "title": "Data Hub Crypt4Gh Private Key Path",
+      "type": "string"
+    },
+    "crypt4gh_private_key_passphrase": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Passphrase needed to read the content of the private key file. Only needed if the private key is encrypted.",
+      "title": "Crypt4Gh Private Key Passphrase"
+    },
     "client_cache_capacity": {
       "default": 128,
       "description": "Maximum number of entries to store in the cache. Older entries are evicted once this limit is reached.",
@@ -186,19 +208,9 @@
       "title": "Retry After Applicable For Num Requests",
       "type": "integer"
     },
-    "data_hub_private_key": {
-      "description": "The Data Hub's private key for signing auth tokens and decrypting files",
-      "examples": [
-        "{\"crv\": \"P-256\", \"kty\": \"EC\", \"x\": \"...\", \"y\": \"...\"}"
-      ],
-      "format": "password",
-      "title": "Data Hub Private Key",
-      "type": "string",
-      "writeOnly": true
-    },
-    "central_api_public_key": {
+    "central_api_crypt4gh_public_key": {
       "description": "The Crypt4GH public key used by the Central API",
-      "title": "Central Api Public Key",
+      "title": "Central Api Crypt4Gh Public Key",
       "type": "string"
     },
     "central_api_url": {
@@ -208,6 +220,16 @@
       "minLength": 1,
       "title": "Central Api Url",
       "type": "string"
+    },
+    "data_hub_signing_key": {
+      "description": "The Data Hub's private JWK for signing JWT auth tokens",
+      "examples": [
+        "{\"crv\": \"P-256\", \"kty\": \"EC\", \"x\": \"...\", \"y\": \"...\", \"d\": \"...\"}"
+      ],
+      "format": "password",
+      "title": "Data Hub Signing Key",
+      "type": "string",
+      "writeOnly": true
     },
     "object_storages": {
       "additionalProperties": {
@@ -281,9 +303,10 @@
     }
   },
   "required": [
-    "data_hub_private_key",
-    "central_api_public_key",
+    "data_hub_crypt4gh_private_key_path",
+    "central_api_crypt4gh_public_key",
     "central_api_url",
+    "data_hub_signing_key",
     "object_storages",
     "service_instance_id"
   ],

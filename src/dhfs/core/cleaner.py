@@ -27,7 +27,6 @@ log = logging.getLogger(__name__)
 __all__ = ["S3Cleaner"]
 
 
-# TODO: Consolidate this class with the interrogator class
 class S3Cleaner(S3CleanerPort):
     """Performs cleanup for the interrogation bucket"""
 

@@ -1,4 +1,4 @@
-central_api_public_key: dWoWghAEVPcpHILEb5drJx59nF+of6YKuAOhKRpmegY=
+central_api_crypt4gh_public_key: dWoWghAEVPcpHILEb5drJx59nF+of6YKuAOhKRpmegY=
 central_api_url: http://127.0.0.1:8000/central
 client_cache_capacity: 128
 client_cache_ttl: 60
@@ -17,7 +17,9 @@ client_retry_status_codes:
 - 502
 - 503
 - 504
-data_hub_private_key: '**********'
+crypt4gh_private_key_passphrase: null
+data_hub_crypt4gh_private_key_path: key.sec
+data_hub_signing_key: '**********'
 inbox_storage_alias: inbox
 interrogation_storage_alias: interrogation
 log_format: null

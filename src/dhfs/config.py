@@ -15,16 +15,35 @@
 
 """Config Parameter Modeling and Parsing."""
 
+from pathlib import Path
+
 from ghga_service_commons.transports import CompositeCacheConfig
 from ghga_service_commons.utils.multinode_storage import S3ObjectStoragesConfig
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
 from pydantic import Field
+from pydantic_settings import BaseSettings
 
 from dhfs.adapters.outbound.central import CentralClientConfig
-from dhfs.core.auth import DataHubAuthConfig
 
 SERVICE_NAME: str = "dhfs"
+
+
+class Crypt4GHConfig(BaseSettings):
+    """Service specific configuration"""
+
+    data_hub_crypt4gh_private_key_path: Path = Field(
+        default=...,
+        examples=["./key.sec"],
+        description="Path to the Data Hub's Crypt4GH private key file",
+    )
+    crypt4gh_private_key_passphrase: str | None = Field(
+        default=None,
+        description=(
+            "Passphrase needed to read the content of the private key file. "
+            + "Only needed if the private key is encrypted."
+        ),
+    )
 
 
 @config_from_yaml(prefix=SERVICE_NAME)
@@ -33,7 +52,7 @@ class Config(
     S3ObjectStoragesConfig,
     CentralClientConfig,
     CompositeCacheConfig,
-    DataHubAuthConfig,
+    Crypt4GHConfig,
 ):
     """Config parameters and their defaults."""
 

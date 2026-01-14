@@ -20,6 +20,7 @@ import logging
 import os
 
 import crypt4gh.header
+from crypt4gh.keys import get_private_key
 from hexkit.utils import now_utc_ms_prec
 from nacl.bindings import (
     crypto_aead_chacha20poly1305_ietf_decrypt as decrypt_algo,
@@ -54,7 +55,12 @@ class Interrogator(InterrogatorPort):
         self._inbox_storage_alias = config.inbox_storage_alias
         self._interrogation_storage_alias = config.interrogation_storage_alias
         self._central_client = central_client
-        self._data_hub_private_key = config.data_hub_private_key
+        self._data_hub_private_key = SecretBytes(
+            get_private_key(
+                config.data_hub_crypt4gh_private_key_path,
+                lambda: config.crypt4gh_private_key_passphrase,
+            )
+        )
         self._s3_client = s3_client
 
     async def interrogate_new_files(self) -> None:

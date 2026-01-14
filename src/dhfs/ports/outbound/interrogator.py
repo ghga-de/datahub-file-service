@@ -62,6 +62,7 @@ class InterrogatorPort(ABC):
     @abstractmethod
     async def interrogate_file(self, file_upload: FileUpload) -> None:
         """Inspect and re-encrypt an newly uploaded file"""
+        ...
 
     @abstractmethod
     async def report_success(
