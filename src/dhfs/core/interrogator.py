@@ -116,12 +116,14 @@ class Interrogator(InterrogatorPort):
     ) -> bytes:
         """Re-encrypt a decrypted file part using a new secret"""
         try:
-            return encrypt_algo(
+            nonce = os.urandom(NONCE_LENGTH)
+            encrypted = encrypt_algo(
                 decrypted_part,
                 None,
-                os.urandom(NONCE_LENGTH),
+                nonce,
                 new_secret.get_secret_value(),
             )
+            return nonce + encrypted
         except Exception as err:
             error = self.ReencryptionError()
             log.error(
@@ -162,19 +164,27 @@ class Interrogator(InterrogatorPort):
         # Establish Checksums object to track decrypted and encrypted content checksums
         checksums = Checksums()
         object_id = str(file_upload.id)
+        upload_buffer = b""
+        uploaded_part_number = 1
 
         # Download, re-encrypt, and upload object part-by-part
-        for part_no, part_range in enumerate(file_upload.calc_encrypted_part_ranges()):
+        for crypt4gh_chunk_no, part_range in enumerate(
+            file_upload.calc_encrypted_part_ranges()
+        ):
             # Initial decryption
             try:
                 decrypted_part = await self._fetch_and_decrypt_part(
                     object_id=object_id, part_range=part_range, secret=old_secret
                 )
-                log.debug("Decrypted part number %i for file %s", part_no, object_id)
+                log.debug(
+                    "Decrypted chunk number %i for file %s",
+                    crypt4gh_chunk_no,
+                    object_id,
+                )
             except self.DecryptionError:
                 log.error(
-                    "Failed initial decryption of part number %i of file %s",
-                    part_no,
+                    "Failed initial decryption of chunk number %i of file %s",
+                    crypt4gh_chunk_no,
                     object_id,
                 )
                 raise
@@ -184,11 +194,18 @@ class Interrogator(InterrogatorPort):
                 reencrypted_part = self._reencrypt_part(
                     decrypted_part=decrypted_part, new_secret=new_secret
                 )
-                log.debug("Re-encrypted part %i for file %s", part_no, object_id)
+                log.debug(
+                    "Re-encrypted chunk number %i for file %s",
+                    crypt4gh_chunk_no,
+                    object_id,
+                )
             except self.ReencryptionError:
                 log.error(
-                    "Failed to re-encrypt part number %i of file %s", part_no, object_id
+                    "Failed to re-encrypt chunk number %i of file %s",
+                    crypt4gh_chunk_no,
+                    object_id,
                 )
+                raise
 
             # Decrypt again to verify encryption process was correct
             try:
@@ -196,30 +213,52 @@ class Interrogator(InterrogatorPort):
                     encrypted_part=reencrypted_part, secret=new_secret
                 )
                 log.debug(
-                    "Successfully performed confirmatory decryption on part number %i"
+                    "Successfully performed confirmatory decryption on chunk number %i"
                     + " of file %s",
-                    part_no,
+                    crypt4gh_chunk_no,
                     object_id,
                 )
             except self.DecryptionError:
                 log.error(
-                    "Failed confirmatory decryption of part number %i of file %s",
-                    part_no,
+                    "Failed confirmatory decryption of chunk number %i of file %s",
+                    crypt4gh_chunk_no,
                     object_id,
                 )
                 raise
 
-            # Calculate part's encrypted md5 & sha256 and update whole-decrypted-file sha256
-            checksums.update_encrypted(reencrypted_part)
+            # Update whole-decrypted-file sha256
             checksums.update_unencrypted(decrypted_part)
 
+            upload_buffer += reencrypted_part
+            if len(upload_buffer) >= file_upload.part_size:
+                # Calculate part's encrypted md5 and sha256
+                part_to_upload = upload_buffer[: file_upload.part_size]
+                checksums.update_encrypted(part_to_upload)
+
+                # Upload the re-encrypted part
+                await self._s3_client.upload_file_part(
+                    upload_id=upload_id,
+                    object_id=object_id,
+                    part_no=uploaded_part_number,
+                    part_md5=checksums.encrypted_md5[-1],
+                    part=part_to_upload,
+                )
+                uploaded_part_number += 1
+
+                # Set buffer to whatever the remainder was
+                upload_buffer = upload_buffer[file_upload.part_size :]
+
+        # Upload remaining file content if needed
+        if upload_buffer:
+            checksums.update_encrypted(upload_buffer)
             await self._s3_client.upload_file_part(
                 upload_id=upload_id,
                 object_id=object_id,
-                part_no=part_no,
+                part_no=uploaded_part_number,
                 part_md5=checksums.encrypted_md5[-1],
-                part=reencrypted_part,
+                part=upload_buffer,
             )
+
         return checksums
 
     async def interrogate_file(self, file_upload: FileUpload) -> None:
@@ -260,7 +299,7 @@ class Interrogator(InterrogatorPort):
         actual_etag = await self._s3_client.complete_upload(
             upload_id=upload_id,
             object_id=object_id,
-            part_count=file_upload.encrypted_part_count,
+            part_count=len(checksums.encrypted_md5),
         )
 
         # Check integrity of final object in S3
