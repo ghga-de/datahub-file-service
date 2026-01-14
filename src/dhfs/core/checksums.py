@@ -23,8 +23,8 @@ class Checksums:
 
     def __init__(self):
         self.unencrypted_sha256 = hashlib.sha256()
-        self.encrypted_md5: list[str] = []
-        self.encrypted_sha256: list[str] = []
+        self.encrypted_md5: list[bytes] = []
+        self.encrypted_sha256: list[bytes] = []
 
     def __str__(self) -> str:
         """Return multiline representation of checksum hashes"""
@@ -36,7 +36,7 @@ class Checksums:
 
     def encrypted_is_empty(self):
         """Returns true if the encryption checksum buffer is still empty"""
-        return len(self.encrypted_md5) == 0
+        return not self.encrypted_md5
 
     def update_unencrypted(self, part: bytes):
         """Update checksum for unencrypted file"""
@@ -44,12 +44,12 @@ class Checksums:
 
     def update_encrypted(self, part: bytes):
         """Update encrypted part checksums"""
-        self.encrypted_md5.append(hashlib.md5(part, usedforsecurity=False).hexdigest())
-        self.encrypted_sha256.append(hashlib.sha256(part).hexdigest())
+        self.encrypted_md5.append(hashlib.md5(part, usedforsecurity=False).digest())
+        self.encrypted_sha256.append(hashlib.sha256(part).digest())
 
     def encrypted_checksum_for_s3(self) -> str:
         """Formulate the expected encrypted checksum str (etag) stored by S3."""
-        concatenated_md5s = b"".join(bytes.fromhex(md5) for md5 in self.encrypted_md5)
+        concatenated_md5s = b"".join(self.encrypted_md5)
         object_md5 = hashlib.md5(concatenated_md5s, usedforsecurity=False).hexdigest()
         num_parts = len(self.encrypted_md5)
         return object_md5 + f"-{num_parts}"

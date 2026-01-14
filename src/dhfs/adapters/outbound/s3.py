@@ -220,11 +220,11 @@ class S3Client(S3ClientPort):
         upload_id: str,
         object_id: str,
         part_no: int,
-        part_md5: str,
+        part_md5: bytes,
     ) -> str:
         """Retrieve a presigned part upload URL for a given file part"""
-        # Convert hex MD5 to base64 for S3
-        md5_base64 = base64.b64encode(bytes.fromhex(part_md5)).decode()
+        # Convert MD5 to base64 for S3
+        md5_base64 = base64.b64encode(part_md5).decode()
         try:
             return await self._interrogation_storage.get_part_upload_url(
                 upload_id=upload_id,
@@ -271,7 +271,7 @@ class S3Client(S3ClientPort):
         upload_id: str,
         object_id: str,
         part_no: int,
-        part_md5: str,
+        part_md5: bytes,
         part: bytes,
     ) -> None:
         """Upload a single re-encrypted file part"""

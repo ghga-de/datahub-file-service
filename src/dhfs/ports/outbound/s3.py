@@ -91,7 +91,7 @@ class S3ClientPort(ABC):
         upload_id: str,
         object_id: str,
         part_no: int,
-        part_md5: str,
+        part_md5: bytes,
         part: bytes,
     ) -> None:
         """Upload a single re-encrypted file part"""

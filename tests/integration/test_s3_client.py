@@ -15,7 +15,6 @@
 
 """Integration tests for the S3Client class"""
 
-import base64
 import hashlib
 from collections.abc import AsyncGenerator
 
@@ -115,7 +114,9 @@ async def test_fetch_file_content_range(
 
     # Fetch and inspect data
     content = await s3_client.fetch_file_content_range(
-        object_id=object_id, start=0, stop=115
+        object_id=object_id,
+        start=0,
+        stop=116,  # stop is exclusive, fetch 116 bytes
     )
     assert content == b"this is some object content. " * 4
 
@@ -156,8 +157,8 @@ async def test_upload_file_part(joint_fixture: JointFixture, s3_client: S3Client
     """Test the functionality of `S3Client.upload_file_part()`"""
     object_id = str(uuid4())
     part = b"some content but not too much"
-    md5 = base64.b64encode(hashlib.md5(part).digest()).decode("ascii")
-    bogus_md5 = base64.b64encode(hashlib.md5(b"junk").digest()).decode("ascii")
+    md5 = hashlib.md5(part).digest()
+    bogus_md5 = hashlib.md5(b"junk").digest()
 
     # Try to upload file part when neither upload nor bucket yet exist
     with pytest.raises(S3Client.BucketNotFoundError):
@@ -244,8 +245,7 @@ async def test_complete_upload(joint_fixture: JointFixture, s3_client: S3Client)
     # Now create an upload
     upload_id = await s3_client.init_interrogation_bucket_upload(object_id=object_id)
     part = b"some content but not too much"
-    unencoded_md5 = hashlib.md5(part).digest()
-    md5 = base64.b64encode(unencoded_md5).decode("ascii")
+    md5 = hashlib.md5(part).digest()
     await s3_client.upload_file_part(
         upload_id=upload_id,
         object_id=object_id,
@@ -266,7 +266,7 @@ async def test_complete_upload(joint_fixture: JointFixture, s3_client: S3Client)
     #  For reference, S3 calculates this by calculating a separate MD5 on each file
     #  part, then concatenating them, calculating the MD5 of THAT string, then appending
     #  '-{part_count}'. E.g. "28d90cb7156323004732ff359e54e659-1" for a 1-part object
-    expected_object_md5 = hashlib.md5(unencoded_md5, usedforsecurity=False).hexdigest()
+    expected_object_md5 = hashlib.md5(md5, usedforsecurity=False).hexdigest()
     expected_object_md5 += "-1"
     etag = await s3_client.complete_upload(
         upload_id=upload_id, object_id=object_id, part_count=1
@@ -294,8 +294,7 @@ async def test_abort_upload(joint_fixture: JointFixture, s3_client: S3Client):
     # Carry out an upload but don't complete it yet
     upload_id = await s3_client.init_interrogation_bucket_upload(object_id=object_id)
     part = b"some content but not too much"
-    unencoded_md5 = hashlib.md5(part).digest()
-    md5 = base64.b64encode(unencoded_md5).decode("ascii")
+    md5 = hashlib.md5(part).digest()
     await s3_client.upload_file_part(
         upload_id=upload_id,
         object_id=object_id,

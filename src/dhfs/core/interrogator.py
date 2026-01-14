@@ -324,8 +324,8 @@ class Interrogator(InterrogatorPort):
         *,
         file_id: UUID4,
         secret: SecretBytes,
-        encrypted_parts_md5: list[str],
-        encrypted_parts_sha256: list[str],
+        encrypted_parts_md5: list[bytes],
+        encrypted_parts_sha256: list[bytes],
     ) -> None:
         """Submit an InterrogationReport for a successful interrogation"""
         report = InterrogationReport(
@@ -334,8 +334,8 @@ class Interrogator(InterrogatorPort):
             interrogated_at=now_utc_ms_prec(),
             passed=True,
             secret=secret,
-            encrypted_parts_md5=encrypted_parts_md5,
-            encrypted_parts_sha256=encrypted_parts_sha256,
+            encrypted_parts_md5=[h.hex() for h in encrypted_parts_md5],
+            encrypted_parts_sha256=[h.hex() for h in encrypted_parts_sha256],
         )
         await self._central_client.submit_interrogation_report(report=report)
 

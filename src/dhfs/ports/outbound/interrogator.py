@@ -70,8 +70,8 @@ class InterrogatorPort(ABC):
         *,
         file_id: UUID4,
         secret: SecretBytes,
-        encrypted_parts_md5: list[str],
-        encrypted_parts_sha256: list[str],
+        encrypted_parts_md5: list[bytes],
+        encrypted_parts_sha256: list[bytes],
     ) -> None:
         """Submit an InterrogationReport for a successful interrogation"""
         ...
