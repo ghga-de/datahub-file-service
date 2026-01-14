@@ -15,6 +15,7 @@
 
 """Outbound adapter that interacts directly with S3 object storage"""
 
+import base64
 import logging
 from dataclasses import dataclass
 
@@ -101,7 +102,7 @@ class S3Client(S3ClientPort):
                 len(object_ids),
                 self._interrogation_bucket_id,
             )
-            return object_ids
+            return sorted(object_ids)
         except ObjectStorageProtocol.BucketNotFoundError as err:
             bucket_error = self.BucketNotFoundError(
                 f"Failed to get list of files in the {self._interrogation_bucket_id}"
@@ -150,11 +151,11 @@ class S3Client(S3ClientPort):
     async def fetch_file_content_range(
         self, *, object_id: str, start: int, stop: int
     ) -> bytes:
-        """Download a single file part for the bytes in range `start` - `stop` (inclusive)."""
+        """Download a single file part for the bytes in range `start` - `stop` (exclusive end, like Python slicing)."""
         download_url = await self._get_download_url(object_id=object_id)
         headers = httpx.Headers(
             {
-                "Range": f"bytes={start}-{stop}",
+                "Range": f"bytes={start}-{stop - 1}",  # HTTP Range is inclusive, so subtract 1
                 "Cache-Control": "no-store",  # don't cache part downloads
             }
         )
@@ -222,13 +223,15 @@ class S3Client(S3ClientPort):
         part_md5: str,
     ) -> str:
         """Retrieve a presigned part upload URL for a given file part"""
+        # Convert hex MD5 to base64 for S3
+        md5_base64 = base64.b64encode(bytes.fromhex(part_md5)).decode()
         try:
             return await self._interrogation_storage.get_part_upload_url(
                 upload_id=upload_id,
                 bucket_id=self._interrogation_bucket_id,
                 object_id=object_id,
                 part_number=part_no,
-                part_md5=part_md5,
+                part_md5=md5_base64,
             )
         except ObjectStorageProtocol.BucketNotFoundError as err:
             # This is logged as critical because the bucket should definitely exist
