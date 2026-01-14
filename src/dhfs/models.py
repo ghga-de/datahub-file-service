@@ -47,36 +47,35 @@ class FileUpload(BaseModel):
     encrypted_size: int
     part_size: int
 
+    @computed_field  # type: ignore[prop-decorator]
     @cached_property
-    @computed_field
     def encrypted_part_count(self) -> int:
         """Calculate the number of file parts in the re-encrypted object"""
         x = (self.decrypted_size - self.offset) / self.part_size
         return ceil(x)
 
+    @computed_field  # type: ignore[prop-decorator]
     @cached_property
-    @computed_field
     def offset(self) -> int:
         """Calculate the size of the file encryption envelope/where content begins"""
         chunk_size = NONCE_LENGTH + crypt4gh.lib.SEGMENT_SIZE + AUTH_TAG_LENGTH
         chunks = self.decrypted_size // crypt4gh.lib.SEGMENT_SIZE
         unencrypted_remainder = self.decrypted_size - crypt4gh.lib.SEGMENT_SIZE * chunks
-        size_sans_envelope = (chunk_size * chunks) + (
-            unencrypted_remainder + NONCE_LENGTH + AUTH_TAG_LENGTH
-        )
+        size_sans_envelope = chunk_size * chunks
+        if unencrypted_remainder:
+            size_sans_envelope += unencrypted_remainder + NONCE_LENGTH + AUTH_TAG_LENGTH
         return self.encrypted_size - size_sans_envelope
 
     def calc_encrypted_part_ranges(self) -> Generator[PartRange]:
         """Calculate file part ranges that align with the Crypt4GH segment size"""
-        processed = 0
+        processed = self.offset
         ranges = []
-        file_size = self.encrypted_size - self.offset
-        while processed < file_size:
+        while processed < self.encrypted_size:
             start = processed
             processed += NONCE_LENGTH  # nonce
             processed += crypt4gh.lib.SEGMENT_SIZE
             processed += AUTH_TAG_LENGTH  # auth tag
-            end = min(processed, file_size)
+            end = min(processed, self.encrypted_size)
             ranges.append(PartRange(start, end))
         yield from ranges
 
