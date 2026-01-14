@@ -60,10 +60,15 @@ async def test_cleaner_successful(
     assert set(await storage.list_all_object_ids(bucket)) == set(file_ids)
 
     # Create a mock response from the central API
-    params = "&".join([f"file_id={file_id}" for file_id in file_ids])
-    url = f"{joint_fixture.config.central_api_url}/uploads/can_remove?{params}"
+    url = (
+        f"{joint_fixture.config.central_api_url}/storages/"
+        + f"{interrogation}/uploads/can_remove"
+    )
     httpx_mock.add_response(
-        status_code=200, json=removable_files, url=url, method="GET"
+        status_code=200,
+        json=removable_files,
+        url=url,
+        method="POST",
     )
 
     # Run the scan and clean operation
@@ -72,3 +77,6 @@ async def test_cleaner_successful(
     # Check that only the removable_files were deleted from the bucket
     remaining_files = await storage.list_all_object_ids(bucket)
     assert set(remaining_files) == set(file_ids) - set(removable_files)
+
+
+# TODO: Add failure test cases

@@ -27,8 +27,7 @@ import httpx
 import pytest
 import pytest_asyncio
 from ghga_service_commons.auth.jwt_auth import JWTAuthConfig, JWTAuthContextProvider
-from ghga_service_commons.utils import jwt_helpers
-from ghga_service_commons.utils.crypt import decrypt, encode_key, generate_key_pair
+from ghga_service_commons.utils.crypt import decrypt
 from ghga_service_commons.utils.utc_dates import UTCDatetime
 from hexkit.utils import now_utc_ms_prec
 from pydantic import BaseModel, SecretBytes
@@ -38,13 +37,9 @@ from dhfs.adapters.outbound.central import CentralClient
 from dhfs.adapters.outbound.http import get_configured_httpx_client
 from dhfs.config import Config
 from dhfs.models import InterrogationReport
-from tests.fixtures.config import get_config
+from tests.fixtures.utils import CENTRAL_CRYPT4GH_PRIVATE_KEY, DHFS_JWK
 
-CENTRAL_CRYPT4GH_KEYPAIR = generate_key_pair()
-CENTRAL_PUBLIC_KEY = encode_key(CENTRAL_CRYPT4GH_KEYPAIR.public)
 pytestmark = pytest.mark.asyncio()
-
-DHFS_JWK = jwt_helpers.generate_jwk()
 
 
 def make_interrogation_success_report(storage_alias: str) -> InterrogationReport:
@@ -81,29 +76,19 @@ class JWTClaimsModel(BaseModel):
     exp: UTCDatetime
 
 
-@pytest.fixture(name="config")
-def config_fixture() -> Config:
-    """Update the default config with the auth keys for FIS & DHFS"""
-    central_api_public_key = CENTRAL_PUBLIC_KEY
-    signing_key = DHFS_JWK.export_private()
-    return get_config(
-        data_hub_private_key=signing_key,
-        central_api_public_key=central_api_public_key,
-    )
-
-
 @pytest_asyncio.fixture(name="central_client")
-async def configured_central_client(config) -> AsyncGenerator[CentralClient]:
+async def configured_central_client(config: Config) -> AsyncGenerator[CentralClient]:
     """Yields a configured CentralClient instance"""
     async with get_configured_httpx_client(config=config, cached=False) as httpx_client:
         yield CentralClient(
             config=config,
             inbox_storage_alias=config.inbox_storage_alias,
+            interrogation_storage_alias=config.interrogation_storage_alias,
             httpx_client=httpx_client,
         )
 
 
-async def test_central_api_unavailable(config, central_client):
+async def test_central_api_unavailable(config: Config, central_client):
     """Ensure an httpx.ConnectError gets raised if the central api is unavailable"""
     # Test the different public methods exposed by the CentralClient
     with pytest.raises(httpx.ConnectError):
@@ -118,7 +103,7 @@ async def test_central_api_unavailable(config, central_client):
 
 
 @pytest.mark.httpx_mock(can_send_already_matched_responses=True)
-async def test_jwt_formation(config, httpx_mock: HTTPXMock):
+async def test_jwt_formation(config: Config, httpx_mock: HTTPXMock):
     """Test that the CentralClient class makes proper JWTs in its requests"""
     # Create a mock JWTAuthContextProvider so we can inspect the JWT sent by this service
     central_auth_config = JWTAuthConfig(
@@ -150,6 +135,7 @@ async def test_jwt_formation(config, httpx_mock: HTTPXMock):
         central_client = CentralClient(
             config=config,
             inbox_storage_alias=config.inbox_storage_alias,
+            interrogation_storage_alias=config.interrogation_storage_alias,
             httpx_client=httpx_client,
         )
 
@@ -179,7 +165,9 @@ async def test_responses_with_bad_format(central_client, httpx_mock: HTTPXMock):
 
 
 @pytest.mark.httpx_mock(can_send_already_matched_responses=True)
-async def test_500_response_handling(config, central_client, httpx_mock: HTTPXMock):
+async def test_500_response_handling(
+    config: Config, central_client, httpx_mock: HTTPXMock
+):
     """Test that "500" status codes trigger a `CentralAPIError`"""
     httpx_mock.add_response(status_code=500)
     with pytest.raises(CentralClient.CentralAPIError):
@@ -193,7 +181,7 @@ async def test_500_response_handling(config, central_client, httpx_mock: HTTPXMo
         await central_client.submit_interrogation_report(report=report)
 
 
-async def test_report_submission(config, central_client, httpx_mock: HTTPXMock):
+async def test_report_submission(config: Config, central_client, httpx_mock: HTTPXMock):
     """Test that the secret submitted inside the InterrogationReport is encrypted
     with the Central API public key, as well as that other fields are submitted.
     """
@@ -207,7 +195,7 @@ async def test_report_submission(config, central_client, httpx_mock: HTTPXMock):
         interrogated_at = datetime.fromisoformat(body["interrogated_at"])
         assert interrogated_at - now_utc_ms_prec() < timedelta(seconds=3)
         if body["passed"]:
-            secret = decrypt(body["secret"], CENTRAL_CRYPT4GH_KEYPAIR.private)
+            secret = decrypt(body["secret"], CENTRAL_CRYPT4GH_PRIVATE_KEY)
             decoded_secret = base64.urlsafe_b64decode(secret)
             assert decoded_secret == success_report.secret.get_secret_value()  # type: ignore
             assert body["encrypted_parts_md5"]

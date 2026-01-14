@@ -21,7 +21,6 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 
 import pytest_asyncio
-from ghga_service_commons.utils.jwt_helpers import generate_jwk
 from hexkit.providers.s3.provider import S3Config
 from hexkit.providers.s3.testutils import FederatedS3Fixture
 
@@ -29,7 +28,6 @@ from dhfs.config import Config
 from dhfs.inject import prepare_interrogation_bucket_cleaner, prepare_interrogator
 from dhfs.ports.outbound.cleaner import S3CleanerPort
 from dhfs.ports.outbound.interrogator import InterrogatorPort
-from tests.fixtures.config import get_config
 
 
 @dataclass
@@ -54,20 +52,9 @@ def patch_config_for_alias(
 @pytest_asyncio.fixture(scope="function")
 async def joint_fixture(
     federated_s3: FederatedS3Fixture,
+    config: Config,
 ) -> AsyncGenerator[JointFixture]:
     """A fixture that embeds all other fixtures for API-level integration testing."""
-    central_jwk = generate_jwk()
-    central_pub_key = central_jwk.export(private_key=False)
-    dhfs_jwk = generate_jwk()
-    dhfs_private_key = dhfs_jwk.export_private()
-
-    # merge configs from different sources with the default one:
-    config = get_config(
-        sources=[],
-        data_hub_private_key=dhfs_private_key,
-        central_api_public_key=central_pub_key,
-    )
-
     # Patch the config so the URL/credentials point to the actual S3 testcontainers
     for storage_alias, s3_config in federated_s3.get_configs_by_alias().items():
         config = patch_config_for_alias(

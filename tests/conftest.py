@@ -16,24 +16,29 @@
 """Import necessary test fixtures."""
 
 import pytest
-from ghga_service_commons.utils import jwt_helpers
 from hexkit.providers.s3.testutils import (  # noqa: F401
     federated_s3_fixture,
     s3_multi_container_fixture,
 )
 
-from tests.fixtures import ConfigFixture
+from dhfs.config import Config
 from tests.fixtures.config import DEFAULT_TEST_CONFIG, get_config
 from tests.fixtures.joint import joint_fixture  # noqa: F401
+from tests.fixtures.utils import (
+    CENTRAL_CRYPT4GH_PUBLIC_KEY,
+    DHFS_CRYPT4GH_PRIVATE_KEY_PATH,
+    DHFS_SIGNING_KEY,
+)
 
 
 @pytest.fixture(name="config")
-def config_fixture() -> ConfigFixture:
-    """Generate config from test yaml along with an auth key and JWK"""
-    jwk = jwt_helpers.generate_jwk()
-    signing_key = jwt_helpers.generate_jwk().export_private()
-    config = get_config(data_hub_private_key=signing_key)
-    return ConfigFixture(config=config, jwk=jwk)
+def config_fixture() -> Config:
+    """Update the default config with the auth keys for FIS & DHFS"""
+    return get_config(
+        data_hub_crypt4gh_private_key_path=DHFS_CRYPT4GH_PRIVATE_KEY_PATH,
+        data_hub_signing_key=DHFS_SIGNING_KEY,
+        central_api_crypt4gh_public_key=CENTRAL_CRYPT4GH_PUBLIC_KEY,
+    )
 
 
 @pytest.fixture(scope="session")

@@ -23,11 +23,11 @@ import httpx
 import pytest
 import pytest_asyncio
 from ghga_service_commons.utils.multinode_storage import S3ObjectStorages
-from hexkit.providers.s3.provider import S3ObjectStorage
 
 from dhfs.adapters.outbound.http import get_configured_httpx_client
 from dhfs.adapters.outbound.s3 import S3Client, get_s3_client
 from tests.fixtures.joint import JointFixture
+from tests.fixtures.utils import upload_dummy_data
 
 pytestmark = pytest.mark.asyncio()
 from uuid import uuid4
@@ -44,20 +44,6 @@ async def _s3_client(joint_fixture: JointFixture) -> AsyncGenerator[S3Client]:
             config=config, object_storages=object_storages, httpx_client=client
         )
         yield s3_client
-
-
-async def upload_object(*, bucket_id: str, object_id: str, storage: S3ObjectStorage):
-    """Upload dummy data to the S3 storage for a given bucket and object ID"""
-    upload_id = await storage.init_multipart_upload(
-        bucket_id=bucket_id, object_id=object_id
-    )
-    url = await storage.get_part_upload_url(
-        upload_id=upload_id, bucket_id=bucket_id, object_id=object_id, part_number=1
-    )
-    httpx.put(url, content=b"this is some object content. " * 2000)
-    await storage.complete_multipart_upload(
-        upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
-    )
 
 
 async def test_get_is_file_in_inbox(joint_fixture: JointFixture, s3_client: S3Client):
@@ -96,7 +82,9 @@ async def test_list_files_in_interrogation_bucket(
     # Now generate some file IDs and upload a dummy object for each one
     object_ids = [str(uuid4()) for _ in range(3)]
     for object_id in object_ids:
-        await upload_object(bucket_id=bucket_id, object_id=object_id, storage=storage)
+        await upload_dummy_data(
+            bucket_id=bucket_id, object_id=object_id, storage=storage
+        )
 
     # Get the file list again and verify that this time it's correct
     files = await s3_client.list_files_in_interrogation_bucket()
@@ -123,7 +111,7 @@ async def test_fetch_file_content_range(
         await s3_client.fetch_file_content_range(object_id=object_id, start=0, stop=115)
 
     # Upload some test data
-    await upload_object(bucket_id=bucket_id, object_id=object_id, storage=storage)
+    await upload_dummy_data(bucket_id=bucket_id, object_id=object_id, storage=storage)
 
     # Fetch and inspect data
     content = await s3_client.fetch_file_content_range(
@@ -348,7 +336,7 @@ async def test_remove_file_from_interrogation(
     await s3_client.remove_file(object_id=object_id)
 
     # Upload the file and assert it now exists
-    await upload_object(bucket_id=bucket_id, object_id=object_id, storage=storage)
+    await upload_dummy_data(bucket_id=bucket_id, object_id=object_id, storage=storage)
     assert object_id in await s3_client.list_files_in_interrogation_bucket()
 
     # Remove the file for real and check that it's gone
