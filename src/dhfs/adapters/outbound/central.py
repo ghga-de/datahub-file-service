@@ -57,10 +57,13 @@ class CentralClient(CentralClientPort):
         *,
         config: CentralClientConfig,
         inbox_storage_alias: str,
+        interrogation_storage_alias: str,
         httpx_client: httpx.AsyncClient,
     ) -> None:
         """Initialize the CentralClient instance"""
         self._httpx_client = httpx_client
+        self._inbox_storage_alias = inbox_storage_alias
+        self._interrogation_storage_alias = interrogation_storage_alias
         self._central_public_key = config.central_api_crypt4gh_public_key
         self._base_url = str(config.central_api_url).rstrip("/")
         self._signing_key = JWK.from_json(
@@ -75,7 +78,7 @@ class CentralClient(CentralClientPort):
         claims: dict[str, str] = {
             "iss": JWT_ISS,
             "aud": JWT_AUD,
-            "sub": self._storage_alias,
+            "sub": self._inbox_storage_alias,
         }
         return sign_and_serialize_token(
             claims=claims, key=self._signing_key, valid_seconds=AUTH_TOKEN_VALID_SECONDS
@@ -120,7 +123,7 @@ class CentralClient(CentralClientPort):
 
     async def fetch_new_uploads(self) -> list[models.FileUpload]:
         """Fetches a list of files that need to be interrogated and re-encrypted."""
-        url = f"{self._base_url}/storages/{self._storage_alias}/uploads"
+        url = f"{self._base_url}/storages/{self._inbox_storage_alias}/uploads"
 
         response = await self._httpx_client.get(url=url, headers=self._auth_header())
 
@@ -137,10 +140,13 @@ class CentralClient(CentralClientPort):
 
         Returns a list of file IDs that may be removed from the bucket.
         """
-        # TODO: Add an info log here once final shape of request is hammered out
-        params = "&".join([f"file_id={file_id}" for file_id in file_ids])
-        url = f"{self._base_url}/uploads/can_remove?{params}"
-        response = await self._httpx_client.get(url=url, headers=self._auth_header())
+        url = (
+            f"{self._base_url}/storages/{self._interrogation_storage_alias}"
+            + "/uploads/can_remove"
+        )
+        response = await self._httpx_client.post(
+            url=url, json=file_ids, headers=self._auth_header()
+        )
 
         if (status_code := response.status_code) != 200:
             error = self.CentralAPIError(url=url, status_code=status_code)
@@ -154,7 +160,7 @@ class CentralClient(CentralClientPort):
     ) -> None:
         """Submit a file interrogation report to GHGA Central"""
         body = report.model_dump(mode="json")
-        url = f"{self._base_url}/interrogation_reports"
+        url = f"{self._base_url}/storages/{self._interrogation_storage_alias}/interrogation-reports"
 
         # Encrypt secret (core class doesn't know central api public key)
         if report.secret:
