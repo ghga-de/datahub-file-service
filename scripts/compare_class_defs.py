@@ -20,13 +20,15 @@ import inspect
 
 # Import the abstract base classes and their implementations
 from dhfs.adapters.outbound.central import CentralClient  # noqa: F401
+from dhfs.adapters.outbound.s3 import S3Client  # noqa: F401
 from dhfs.core.cleaner import S3Cleaner  # noqa: F401
 from dhfs.core.interrogator import Interrogator  # noqa: F401
 from dhfs.ports.outbound.central import CentralClientPort
 from dhfs.ports.outbound.cleaner import S3CleanerPort
 from dhfs.ports.outbound.interrogator import InterrogatorPort
+from dhfs.ports.outbound.s3 import S3ClientPort
 
-PORTS = [CentralClientPort, S3CleanerPort, InterrogatorPort]
+PORTS = [CentralClientPort, S3CleanerPort, InterrogatorPort, S3ClientPort]
 
 
 def print_links(abc_method: type, imp_method: type):
