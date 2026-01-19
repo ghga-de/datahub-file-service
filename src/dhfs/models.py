@@ -15,6 +15,7 @@
 
 """Models for objects in the DHFS"""
 
+import logging
 from collections.abc import Generator
 from dataclasses import dataclass
 from functools import cached_property
@@ -29,12 +30,17 @@ from dhfs.constants import AUTH_TAG_LENGTH, NONCE_LENGTH
 __all__ = ["FileUpload", "InterrogationReport", "PartRange"]
 
 
+log = logging.getLogger(__name__)
+
+
 @dataclass
 class PartRange:
     """Container for inclusive download ranges"""
 
     start: int
     stop: int
+
+    # segment_boundaries:
 
 
 class FileUpload(BaseModel):
@@ -68,13 +74,29 @@ class FileUpload(BaseModel):
 
     def calc_encrypted_part_ranges(self) -> Generator[PartRange]:
         """Calculate file part ranges that align with the Crypt4GH segment size"""
+        # Each encrypted segment consists of: nonce + encrypted_data + auth_tag
+        encrypted_segment_size = (
+            NONCE_LENGTH + crypt4gh.lib.SEGMENT_SIZE + AUTH_TAG_LENGTH
+        )
+
+        # Adjust part_size to be a multiple of the encrypted segment size
+        # This ensures we download complete segments that can be decrypted
+        segments_per_part = max(1, self.part_size // encrypted_segment_size)
+        adjusted_part_size = segments_per_part * encrypted_segment_size
+
+        if adjusted_part_size != self.part_size:
+            log.info(
+                "Adjusted part size from %d to %d bytes to align with Crypt4GH segment boundaries for file %s",
+                self.part_size,
+                adjusted_part_size,
+                self.id,
+            )
+
         processed = self.offset
         ranges = []
         while processed < self.encrypted_size:
             start = processed
-            processed += NONCE_LENGTH  # nonce
-            processed += crypt4gh.lib.SEGMENT_SIZE
-            processed += AUTH_TAG_LENGTH  # auth tag
+            processed += adjusted_part_size
             end = min(processed, self.encrypted_size)
             ranges.append(PartRange(start, end))
         yield from ranges
