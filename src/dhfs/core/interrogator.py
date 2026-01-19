@@ -20,6 +20,7 @@ import logging
 import os
 
 import crypt4gh.header
+import crypt4gh.lib
 from crypt4gh.exceptions import CryptoError
 from crypt4gh.keys import get_private_key
 from hexkit.utils import now_utc_ms_prec
@@ -32,7 +33,7 @@ from nacl.bindings import (
 from pydantic import UUID4, SecretBytes
 
 from dhfs.config import Config
-from dhfs.constants import ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH
+from dhfs.constants import CIPHER_SEGMENT_SIZE, ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH
 from dhfs.core.checksums import Checksums
 from dhfs.models import FileUpload, InterrogationReport, PartRange
 from dhfs.ports.outbound.central import CentralClientPort
@@ -132,12 +133,20 @@ class Interrogator(InterrogatorPort):
 
         May raise exceptions from the underlying decrypt_algo if decryption fails.
         """
-        return decrypt_algo(
-            encrypted_part[NONCE_LENGTH:],  # data to decrypt (after nonce)
-            None,
-            encrypted_part[:NONCE_LENGTH],  # nonce (first 12 bytes)
-            secret.get_secret_value(),
-        )
+        buffer = b""
+        part_size = len(encrypted_part)
+        position = 0
+
+        while position < part_size:
+            chunk = encrypted_part[position : position + CIPHER_SEGMENT_SIZE]
+            buffer += decrypt_algo(
+                chunk[NONCE_LENGTH:],  # data to decrypt (after nonce)
+                None,
+                chunk[:NONCE_LENGTH],  # nonce (first 12 bytes)
+                secret.get_secret_value(),
+            )
+            position += CIPHER_SEGMENT_SIZE
+        return buffer
 
     def _reencrypt_part(
         self, *, decrypted_part: bytes, new_secret: SecretBytes
@@ -146,14 +155,19 @@ class Interrogator(InterrogatorPort):
 
         May raise exceptions from the underlying encrypt_algo if re-encryption fails.
         """
-        nonce = os.urandom(NONCE_LENGTH)
-        encrypted = encrypt_algo(
-            decrypted_part,
-            None,
-            nonce,
-            new_secret.get_secret_value(),
-        )
-        return nonce + encrypted
+        buffer = b""
+        part_size = len(decrypted_part)
+        position = 0
+
+        while position < part_size:
+            # Extract plaintext chunk (up to SEGMENT_SIZE bytes of decrypted data)
+            chunk = decrypted_part[position : position + crypt4gh.lib.SEGMENT_SIZE]
+            nonce = os.urandom(NONCE_LENGTH)
+            encrypted = encrypt_algo(chunk, None, nonce, new_secret.get_secret_value())
+            buffer += nonce + encrypted
+            position += crypt4gh.lib.SEGMENT_SIZE
+
+        return buffer
 
     async def _process_file_parts(  # noqa: C901
         self,
@@ -185,10 +199,9 @@ class Interrogator(InterrogatorPort):
         uploaded_part_number = 1
 
         # Download, re-encrypt, and upload object part-by-part
-        for crypt4gh_chunk_no, part_range in enumerate(
-            file_upload.calc_encrypted_part_ranges()
-        ):
-            log.debug("Processing part %s for file %s", crypt4gh_chunk_no, object_id)
+        for part_no, part_range in enumerate(file_upload.calc_encrypted_part_ranges()):
+            log.debug("Processing part %s for file %s", part_no, object_id)
+
             # Initial decryption
             try:
                 decrypted_part = await self._fetch_and_decrypt_part(
@@ -197,12 +210,12 @@ class Interrogator(InterrogatorPort):
             except Exception as err:
                 log.error(
                     "Failed initial decryption of chunk number %i of file %s",
-                    crypt4gh_chunk_no,
+                    part_no,
                     object_id,
                     exc_info=True,
                 )
                 raise self.DecryptionError() from err
-            # TODO: Find places where exc_info is not True
+
             # Re-encrypt
             try:
                 reencrypted_part = self._reencrypt_part(
@@ -211,13 +224,11 @@ class Interrogator(InterrogatorPort):
             except Exception as err:
                 log.error(
                     "Failed to re-encrypt part number %i for file %s.",
-                    crypt4gh_chunk_no,
+                    part_no,
                     object_id,
                     exc_info=True,
                 )
                 raise self.ReencryptionError() from err
-
-            # TODO: Make sure downloaded chunks are not super small
 
             # Decrypt again to verify encryption process was correct
             try:
@@ -227,7 +238,7 @@ class Interrogator(InterrogatorPort):
             except Exception as err:
                 log.error(
                     "Failed confirmatory decryption of chunk number %i of file %s",
-                    crypt4gh_chunk_no,
+                    part_no,
                     object_id,
                     exc_info=True,
                 )
