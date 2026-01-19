@@ -48,20 +48,57 @@ class InterrogatorPort(ABC):
     class FileEnvelopeDecryptionError(InterrogationError):
         """Raised when the file envelope can't be decrypted"""
 
+        def __init__(self, *, file_id: UUID4):
+            msg = f"Failed to decrypt the Crypt4GH envelope for file {file_id}"
+            super().__init__(msg)
+
     class DecryptionError(InterrogationError):
         """Raised when a file part can't be decrypted"""
 
-    class ChecksumMismatchError(InterrogationError):
-        """Raised when the MD5 checksum of the encrypted content doesn't match the expected value"""
+    class DecryptedChecksumMismatchError(InterrogationError):
+        """Raised when the SHA256 checksums over the unencrypted content don't match."""
+
+        def __init__(self, *, file_id: UUID4):
+            msg = (
+                f"The SHA-256 checksum over unencrypted content for file {file_id}"
+                + " doesn't match the value submitted with the file"
+            )
+            super().__init__(msg)
+
+    class EncryptedChecksumMismatchError(InterrogationError):
+        """Raised when the MD5 checksums over the encrypted content don't match"""
+
+        def __init__(self, *, file_id: UUID4):
+            msg = (
+                f"The S3 ETag (MD5 checksum) for file {file_id} doesn't match the"
+                + " locally calculated value."
+            )
+            super().__init__(msg)
 
     @abstractmethod
     async def interrogate_new_files(self) -> None:
-        """Query the GHGA Central API for new files that need to be re-encrypted"""
+        """Query the GHGA Central API for new files that need to be re-encrypted.
+
+        This method handles InterrogationError exceptions by reporting failures to the
+        Central API. CantCompleteError exceptions propagate up to the caller.
+
+        Raises:
+        - CantCompleteError if an error prevents interrogation from completing (e.g., network issues, S3 unavailable).
+        """
         ...
 
     @abstractmethod
     async def interrogate_file(self, file_upload: FileUpload) -> None:
-        """Inspect and re-encrypt an newly uploaded file"""
+        """Inspect and re-encrypt a newly uploaded file.
+
+        Raises:
+        - FileEnvelopeDecryptionError if the Crypt4GH envelope cannot be decrypted.
+        - DecryptionError if a file part cannot be decrypted.
+        - ReencryptionError if re-encryption fails.
+        - ChecksumMismatchError if checksums don't match expected values.
+        - CantCompleteError if an error prevents interrogation from completing.
+        - InterrogationError for other errors that signal interrogation failure.
+        """
         ...
 
     @abstractmethod
@@ -73,10 +110,18 @@ class InterrogatorPort(ABC):
         encrypted_parts_md5: list[bytes],
         encrypted_parts_sha256: list[bytes],
     ) -> None:
-        """Submit an InterrogationReport for a successful interrogation"""
+        """Submit an InterrogationReport for a successful interrogation.
+
+        Raises:
+        - May raise errors from the Central API client if report submission fails.
+        """
         ...
 
     @abstractmethod
     async def report_failure(self, *, file_id: UUID4, reason: str) -> None:
-        """Submit an InterrogationReport for an unsuccessful interrogation"""
+        """Submit an InterrogationReport for an unsuccessful interrogation.
+
+        Raises:
+        - May raise errors from the Central API client if report submission fails.
+        """
         ...
