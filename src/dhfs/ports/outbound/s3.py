@@ -26,22 +26,40 @@ class S3ClientPort(ABC):
     class S3Error(RuntimeError):
         """Raised when there's a problem with an operation in S3"""
 
-    class BucketNotFoundError(S3Error):
+    class InconclusiveError(S3Error):
+        """Raised when an upload problem prevents interrogation from reaching a conclusion"""
+
+    class ConclusiveError(S3Error):
+        """Raised when an upload problem signals that a file has failed interrogation."""
+
+    class BucketNotFoundError(InconclusiveError):
         """Raised when a given bucket does not exist in S3"""
 
-    class ObjectNotFoundError(S3Error):
+    class ObjectNotFoundError(InconclusiveError):
         """Raised when a given object does not exist in S3"""
 
-    class DownloadError(S3Error):
+    class PartCountMismatchError(ConclusiveError):
+        """Raised during upload completion when the number of uploaded file parts
+        doesn't match the expected value.
+        """
+
+        def __init__(self, *, upload_id: str, object_id: str, part_count: int):
+            msg = (
+                f"S3 rejected upload {upload_id} for file {object_id} due to a difference"
+                + f" in the expected part count {part_count}."
+            )
+            super().__init__(msg)
+
+    class DownloadError(InconclusiveError):
         """Raised when there's a problem downloading a file from the inbox."""
 
-    class UploadInitError(S3Error):
+    class UploadInitError(InconclusiveError):
         """Raised when there's a problem initiating an upload to the interrogation bucket."""
 
-    class UploadError(S3Error):
+    class UploadError(InconclusiveError):
         """Raised when there's a problem uploading a file part to the interrogation bucket."""
 
-    class BadPartMD5Error(UploadError):
+    class BadPartMD5Error(ConclusiveError):
         """Raised when the MD5 for a file part doesn't match the expected value"""
 
         def __init__(self, *, part_no: int, object_id: str):
@@ -51,8 +69,11 @@ class S3ClientPort(ABC):
             )
             super().__init__(msg)
 
-    class UploadCompletionError(S3Error):
-        """Raised when there's a problem completing an upload"""
+    class UploadCompletionError(InconclusiveError):
+        """Raised when there's a problem completing an upload.
+
+        This serves as a catch-all for unexpected errors during upload completion.
+        """
 
     class S3CleanupError(RuntimeError):
         """Raised when there's a problem deleting an object from S3"""
@@ -66,22 +87,37 @@ class S3ClientPort(ABC):
 
     @abstractmethod
     async def get_is_file_in_inbox(self, *, file_id: UUID4) -> bool:
-        """Return a bool indicating whether the object exists in the inbox"""
+        """Return a bool indicating whether the file exists in the inbox"""
 
     @abstractmethod
     async def list_files_in_interrogation_bucket(self) -> list[str]:
-        """Returns a list of object IDs from the interrogation bucket"""
+        """Returns a list of object IDs from the interrogation bucket.
+
+        Raises:
+        - BucketNotFoundError if the interrogation bucket doesn't exist.
+        """
 
     @abstractmethod
     async def fetch_file_content_range(
         self, *, object_id: str, start: int, stop: int
     ) -> bytes:
-        """Download a single file part for the bytes in range `start` - `stop` (inclusive)."""
+        """Download a single file part for the bytes in range `start` - `stop` (exclusive end, like Python slicing).
+
+        Raises:
+        - BucketNotFoundError if the inbox bucket doesn't exist.
+        - ObjectNotFoundError if the file doesn't exist in the inbox.
+        - DownloadError if the download request fails or returns an unexpected status code.
+        """
         ...
 
     @abstractmethod
     async def init_interrogation_bucket_upload(self, *, object_id: str) -> str:
-        """Start a multipart upload to the interrogation bucket"""
+        """Start a multipart upload to the interrogation bucket.
+
+        Raises:
+        - UploadInitError if an ongoing upload already exists for the object or if an unexpected error occurs.
+        - BucketNotFoundError if the interrogation bucket doesn't exist.
+        """
         ...
 
     @abstractmethod
@@ -94,22 +130,46 @@ class S3ClientPort(ABC):
         part_md5: bytes,
         part: bytes,
     ) -> None:
-        """Upload a single re-encrypted file part"""
+        """Upload a single re-encrypted file part.
+
+        Raises:
+        - BadPartMD5Error if the specified MD5 doesn't match the MD5 calculated by S3.
+        - BucketNotFoundError if the interrogation bucket is missing.
+        - UploadError if any other error causes the part upload to fail.
+        """
         ...
 
     @abstractmethod
     async def complete_upload(
         self, *, upload_id: str, object_id: str, part_count: int
     ) -> str:
-        """Complete a multipart upload for an object in the interrogation bucket"""
+        """Complete a multipart upload for an object in the interrogation bucket.
+
+        Returns the object's ETag (which is the MD5 checksum of the encrypted file).
+
+        Raises:
+        - BucketNotFoundError if the interrogation bucket doesn't exist.
+        - PartCountMismatchError if the number of uploaded parts doesn't match the expected count.
+        - UploadCompletionError if the upload doesn't exist or another error prevents completion.
+        """
         ...
 
     @abstractmethod
     async def abort_upload(self, *, upload_id: str, object_id: str) -> None:
-        """Abort a multipart upload for an object in the interrogation bucket"""
+        """Abort a multipart upload for an object in the interrogation bucket.
+
+        Raises:
+        - BucketNotFoundError if the interrogation bucket doesn't exist.
+        - S3Error if an unexpected error occurs while aborting the upload.
+        """
         ...
 
     @abstractmethod
     async def remove_file(self, *, object_id: str) -> None:
-        """Remove a file from the interrogation bucket"""
+        """Remove a file from the interrogation bucket.
+
+        Raises:
+        - BucketNotFoundError if the interrogation bucket doesn't exist.
+        - S3CleanupError if an unexpected error occurs while deleting the file.
+        """
         ...

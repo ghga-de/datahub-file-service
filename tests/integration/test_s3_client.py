@@ -256,7 +256,7 @@ async def test_complete_upload(joint_fixture: JointFixture, s3_client: S3Client)
 
     # Try to complete upload but use wrong part count
     # TODO: Make sure Interrogator class performs object deletion in all necessary cases
-    with pytest.raises(S3Client.UploadCompletionError):
+    with pytest.raises(S3Client.PartCountMismatchError):
         _ = await s3_client.complete_upload(
             upload_id=upload_id, object_id=object_id, part_count=5
         )
