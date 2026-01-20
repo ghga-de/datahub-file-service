@@ -19,7 +19,6 @@ import logging
 from collections.abc import Generator
 from dataclasses import dataclass
 from functools import cached_property
-from math import ceil
 
 import crypt4gh.lib
 from ghga_service_commons.utils.utc_dates import UTCDatetime
@@ -55,16 +54,9 @@ class FileUpload(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @cached_property
-    def encrypted_part_count(self) -> int:
-        """Calculate the number of file parts in the re-encrypted object"""
-        x = (self.decrypted_size - self.offset) / self.part_size
-        return ceil(x)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @cached_property
     def offset(self) -> int:
         """Calculate the size of the file encryption envelope/where content begins"""
-        chunk_size = NONCE_LENGTH + crypt4gh.lib.SEGMENT_SIZE + AUTH_TAG_LENGTH
+        chunk_size = crypt4gh.lib.CIPHER_SEGMENT_SIZE
         chunks = self.decrypted_size // crypt4gh.lib.SEGMENT_SIZE
         unencrypted_remainder = self.decrypted_size - crypt4gh.lib.SEGMENT_SIZE * chunks
         size_sans_envelope = chunk_size * chunks
