@@ -33,7 +33,7 @@ from nacl.bindings import (
 from pydantic import UUID4, SecretBytes
 
 from dhfs.config import Config
-from dhfs.constants import CIPHER_SEGMENT_SIZE, ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH
+from dhfs.constants import ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH
 from dhfs.core.checksums import Checksums
 from dhfs.models import FileUpload, InterrogationReport, PartRange
 from dhfs.ports.outbound.central import CentralClientPort
@@ -137,14 +137,16 @@ class Interrogator(InterrogatorPort):
         position = 0
 
         while position < part_size:
-            chunk = encrypted_part[position : position + CIPHER_SEGMENT_SIZE]
+            chunk = encrypted_part[
+                position : position + crypt4gh.lib.CIPHER_SEGMENT_SIZE
+            ]
             buffer += decrypt_algo(
                 chunk[NONCE_LENGTH:],  # data to decrypt (after nonce)
                 None,
                 chunk[:NONCE_LENGTH],  # nonce (first 12 bytes)
                 secret.get_secret_value(),
             )
-            position += CIPHER_SEGMENT_SIZE
+            position += crypt4gh.lib.CIPHER_SEGMENT_SIZE
         return buffer
 
     def _reencrypt_part(
