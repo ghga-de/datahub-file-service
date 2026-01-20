@@ -255,7 +255,6 @@ async def test_complete_upload(joint_fixture: JointFixture, s3_client: S3Client)
     )
 
     # Try to complete upload but use wrong part count
-    # TODO: Make sure Interrogator class performs object deletion in all necessary cases
     with pytest.raises(S3Client.PartCountMismatchError):
         _ = await s3_client.complete_upload(
             upload_id=upload_id, object_id=object_id, part_count=5
@@ -341,3 +340,73 @@ async def test_remove_file_from_interrogation(
     # Remove the file for real and check that it's gone
     await s3_client.remove_file(object_id=object_id)
     assert object_id not in await s3_client.list_files_in_interrogation_bucket()
+
+
+async def test_stale_download_url(joint_fixture: JointFixture, s3_client: S3Client):
+    """Test that the S3Client correctly handles 403 errors during file download
+    by generating and caching a new download URL, and finally removing the URL from
+    its download cache when .complete_upload() is called.
+    """
+    # Create the inbox bucket and upload a file
+    config = joint_fixture.config
+    inbox = config.inbox_storage_alias
+    bucket_id = config.object_storages[inbox].bucket
+    storage = joint_fixture.federated_s3.storages[inbox].storage
+    await storage.create_bucket(bucket_id)
+
+    object_id = str(uuid4())
+    await upload_dummy_data(bucket_id=bucket_id, object_id=object_id, storage=storage)
+
+    # Fetch content to populate the download URL cache
+    content = await s3_client.fetch_file_content_range(
+        object_id=object_id, start=0, stop=10
+    )
+    assert len(content) == 10
+    assert object_id in s3_client._download_url_cache
+
+    # Save the original URL so we can later verify that it gets updated
+    original_url = s3_client._download_url_cache[object_id]
+
+    # Corrupt the cached URL signature to simulate a stale/expired URL that returns 403
+    # S3 presigned URLs have signatures - corrupting it will cause S3 to return 403
+    if "?" in original_url:
+        s3_client._download_url_cache[object_id] = (
+            original_url.split("?")[0] + "?invalid=signature"
+        )
+    else:
+        s3_client._download_url_cache[object_id] = original_url + "?invalid=signature"
+
+    # Fetch again - should detect the stale URL (403) and automatically get a fresh one
+    content = await s3_client.fetch_file_content_range(
+        object_id=object_id, start=0, stop=10
+    )
+    assert len(content) == 10
+
+    # Verify the URL was updated in the cache
+    new_url = s3_client._download_url_cache[object_id]
+    assert new_url != original_url + "?invalid=signature"
+    assert object_id in s3_client._download_url_cache
+
+    # Create the interrogation bucket for upload completion
+    interrogation = config.interrogation_storage_alias
+    interrogation_bucket_id = config.object_storages[interrogation].bucket
+    interrogation_storage = joint_fixture.federated_s3.storages[interrogation].storage
+    await interrogation_storage.create_bucket(interrogation_bucket_id)
+
+    # Start and complete an upload
+    upload_id = await s3_client.init_interrogation_bucket_upload(object_id=object_id)
+    part = b"some test content"
+    md5 = hashlib.md5(part, usedforsecurity=False).digest()
+    await s3_client.upload_file_part(
+        upload_id=upload_id,
+        object_id=object_id,
+        part_no=1,
+        part=part,
+        part_md5=md5,
+    )
+    await s3_client.complete_upload(
+        upload_id=upload_id, object_id=object_id, part_count=1
+    )
+
+    # Verify the download URL was removed from the cache after completion
+    assert object_id not in s3_client._download_url_cache

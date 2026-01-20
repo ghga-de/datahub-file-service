@@ -93,7 +93,6 @@ class Interrogator(InterrogatorPort):
         - DownloadError if the download request fails.
         - CryptoError if the Crypt4GH envelope cannot be decrypted.
         """
-        # TODO: Revisit this
         envelope = await self._s3_client.fetch_file_content_range(
             object_id=str(file_upload.id), start=0, stop=file_upload.offset
         )

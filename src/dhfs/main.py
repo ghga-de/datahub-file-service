@@ -19,8 +19,6 @@ from hexkit.log import configure_logging
 from dhfs.config import Config
 from dhfs.inject import prepare_interrogation_bucket_cleaner, prepare_interrogator
 
-# TODO: OTEL
-
 
 async def run_interrogator():
     """Run the file interrogation and re-encryption process."""

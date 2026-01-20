@@ -17,6 +17,7 @@
 
 import base64
 import logging
+from contextlib import suppress
 from dataclasses import dataclass
 
 import httpx
@@ -84,6 +85,8 @@ class S3Client(S3ClientPort):
         self._interrogation_bucket_id = interrogation_storage.bucket_id
         self._interrogation_storage = interrogation_storage.object_storage
         self._httpx_client = httpx_client
+        # Store download URLs for objects, removed when completed
+        self._download_url_cache: dict[str, str] = {}
 
     async def get_is_file_in_inbox(self, *, file_id: UUID4) -> bool:
         """Return a bool indicating whether the file exists in the inbox"""
@@ -151,7 +154,12 @@ class S3Client(S3ClientPort):
             raise error from err
 
     async def fetch_file_content_range(
-        self, *, object_id: str, start: int, stop: int
+        self,
+        *,
+        object_id: str,
+        start: int,
+        stop: int,
+        bust_cache: bool = False,
     ) -> bytes:
         """Download a single file part for the bytes in range `start` - `stop` (exclusive end, like Python slicing).
 
@@ -160,8 +168,13 @@ class S3Client(S3ClientPort):
         - ObjectNotFoundError if the file doesn't exist in the inbox.
         - DownloadError if the download request fails or returns an unexpected status code.
         """
-        download_url = await self._get_download_url(object_id=object_id)
-        # TODO: Handle 403 errors and use fresh URLs
+        if bust_cache or object_id not in self._download_url_cache:
+            self._download_url_cache[object_id] = await self._get_download_url(
+                object_id=object_id
+            )
+
+        download_url = self._download_url_cache[object_id]
+
         headers = httpx.Headers(
             {
                 "Range": f"bytes={start}-{stop - 1}",  # HTTP Range is inclusive, so subtract 1
@@ -173,6 +186,12 @@ class S3Client(S3ClientPort):
         status_code = response.status_code
         if status_code in (200, 206):
             return response.content
+
+        if status_code == 403:
+            log.info(f"Download URL for {object_id} is stale - generating a fresh one")
+            return await self.fetch_file_content_range(
+                object_id=object_id, start=start, stop=stop, bust_cache=True
+            )
 
         error = self.DownloadError(
             f"Received a {status_code} error when trying to download file {object_id}"
@@ -343,16 +362,22 @@ class S3Client(S3ClientPort):
             "part_count": part_count,
         }
         try:
+            # Complete the upload
             await self._interrogation_storage.complete_multipart_upload(
                 upload_id=upload_id,
                 bucket_id=self._interrogation_bucket_id,
                 object_id=object_id,
                 anticipated_part_quantity=part_count,
             )
-            # Compare S3 ETag with locally calculated MD5
+            # Remove download url from cache
+            with suppress(KeyError):
+                del self._download_url_cache[object_id]
+
+            # We need to compare S3 ETag with locally calculated MD5, so fetch the etag
             etag = await self._interrogation_storage.get_object_etag(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             )
+
             return etag.strip('"')
         except ObjectStorageProtocol.BucketNotFoundError as err:
             # This is logged as critical because the bucket should definitely exist
