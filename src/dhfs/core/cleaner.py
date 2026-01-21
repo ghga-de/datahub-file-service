@@ -45,13 +45,72 @@ class S3Cleaner(S3CleanerPort):
         """Get a list of all objects in the 'interrogation' bucket, then query the
         GHGA Central API and delete the objects which that API says may be deleted.
         """
+        log.info("Starting interrogation bucket cleanup scan.")
+
         # TODO: Incomplete MPU cleanup - hexkit currently lacks a 'list ongoing MPUs' method
-        object_ids = await self._s3_client.list_files_in_interrogation_bucket()
+        try:
+            object_ids = await self._s3_client.list_files_in_interrogation_bucket()
+        except Exception as exc:
+            log.error(
+                "Failed to list files in interrogation bucket: %s",
+                exc,
+                exc_info=True,
+            )
+            raise
+
+        if not object_ids:
+            log.info("No files to clean up, exiting.")
+            return
 
         # No need to convert file IDs to UUID here because they are serialized to string
         #  in the outbound request, and S3 expects strings. In short, we don't need the
         #  UUID properties, even for validation.
-        removable_objects = await self._client.get_removable_files(file_ids=object_ids)
+        try:
+            removable_objects = await self._client.get_removable_files(
+                file_ids=object_ids
+            )
+        except Exception as exc:
+            log.error(
+                "Failed to fetch removable files from Central API: %s",
+                exc,
+                exc_info=True,
+            )
+            raise
+
+        log.info(
+            "Central API indicates %d file(s) can be removed.", len(removable_objects)
+        )
+
+        if not removable_objects:
+            log.info("No files marked for removal, exiting.")
+            return
+
+        # Track deletion results
+        deleted_count = 0
+        failed_deletions = []
 
         for object_id in removable_objects:
-            await self._s3_client.remove_file(object_id=object_id)
+            try:
+                await self._s3_client.remove_file(object_id=object_id)
+                deleted_count += 1
+                log.debug("Successfully deleted file: %s", object_id)
+            except Exception as exc:
+                log.error(
+                    "Failed to delete file %s: %s",
+                    object_id,
+                    exc,
+                    exc_info=True,
+                )
+                failed_deletions.append(object_id)
+
+        log.info(
+            "Cleanup complete: %d file(s) deleted successfully, %d failed.",
+            deleted_count,
+            len(failed_deletions),
+        )
+
+        if failed_deletions:
+            log.warning("Failed to delete the following files: %s", failed_deletions)
+            raise RuntimeError(
+                f"Failed to delete {len(failed_deletions)} file(s) during cleanup."
+            )

@@ -14,6 +14,7 @@
 # limitations under the License.
 """Integration tests for the S3Cleaner class"""
 
+import httpx
 import pytest
 from pytest_httpx import HTTPXMock
 
@@ -39,7 +40,10 @@ pytestmark = pytest.mark.asyncio()
     ids=["All", "AllButOne", "None"],
 )
 async def test_cleaner_successful(
-    joint_fixture: JointFixture, httpx_mock: HTTPXMock, removable_files: list[str]
+    joint_fixture: JointFixture,
+    httpx_mock: HTTPXMock,
+    removable_files: list[str],
+    caplog,
 ):
     """Test that files can be removed from the interrogation bucket."""
     # Pre-populate some objects in the interrogation bucket
@@ -72,11 +76,78 @@ async def test_cleaner_successful(
     )
 
     # Run the scan and clean operation
-    await joint_fixture.s3_cleaner.scan_and_clean()
+    with caplog.at_level("INFO"):
+        await joint_fixture.s3_cleaner.scan_and_clean()
 
     # Check that only the removable_files were deleted from the bucket
     remaining_files = await storage.list_all_object_ids(bucket)
     assert set(remaining_files) == set(file_ids) - set(removable_files)
 
+    # Verify log messages based on test case
+    if removable_files == file_ids:  # "All" test case
+        assert "Starting interrogation bucket cleanup scan." in caplog.text
+        assert "Central API indicates 3 file(s) can be removed." in caplog.text
+        assert (
+            "Cleanup complete: 3 file(s) deleted successfully, 0 failed." in caplog.text
+        )
+    elif not removable_files:  # "None" test case
+        assert "No files marked for removal, exiting." in caplog.text
 
-# TODO: Add failure test cases
+
+async def test_no_files_in_interrogation_bucket(
+    joint_fixture: JointFixture, httpx_mock: HTTPXMock, caplog
+):
+    """Test that the cleaner handles an empty interrogation bucket gracefully."""
+    # Don't pre-populate any objects in the interrogation bucket
+    interrogation = joint_fixture.config.interrogation_storage_alias
+    bucket = joint_fixture.config.object_storages[interrogation].bucket
+    storage = joint_fixture.federated_s3.storages[interrogation].storage
+    await storage.create_bucket(interrogation)
+
+    # Verify the bucket is empty
+    assert await storage.list_all_object_ids(bucket) == []
+
+    # Create a mock response from the central API for an empty list
+    url = (
+        f"{joint_fixture.config.central_api_url}/storages/"
+        + f"{interrogation}/uploads/can_remove"
+    )
+    httpx_mock.add_response(status_code=200, json=[], url=url, method="POST")
+
+    # Run the scan and clean operation - should complete without errors
+    with caplog.at_level("INFO"):
+        await joint_fixture.s3_cleaner.scan_and_clean()
+
+    # Verify the cleaner logged that no files needed cleanup
+    assert "No files to clean up, exiting." in caplog.text
+
+
+async def test_central_api_unreachable(
+    joint_fixture: JointFixture,
+    httpx_mock: HTTPXMock,
+    caplog,
+):
+    """Make sure the S3Cleaner handles Central API connection failures."""
+    # Pre-populate some objects in the interrogation bucket
+    interrogation = joint_fixture.config.interrogation_storage_alias
+    bucket = joint_fixture.config.object_storages[interrogation].bucket
+    file_ids = [
+        "18d50867-fbef-4a32-8f70-e81766383980",
+        "1969264c-3abe-44e6-8db9-65612d6c6a90",
+    ]
+    contents = {bucket: file_ids}
+    await joint_fixture.federated_s3.populate_dummy_items(
+        alias=interrogation, contents=contents
+    )
+
+    # The cleaner should raise an exception when unable to reach the API
+    with caplog.at_level("ERROR"), pytest.raises(httpx.TimeoutException):
+        await joint_fixture.s3_cleaner.scan_and_clean()
+
+    # Verify the error was logged
+    assert "Failed to fetch removable files from Central API" in caplog.text
+
+    # Verify that no files were deleted (operation failed before deletion)
+    storage = joint_fixture.federated_s3.storages[interrogation].storage
+    remaining_files = await storage.list_all_object_ids(bucket)
+    assert set(remaining_files) == set(file_ids)
