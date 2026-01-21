@@ -42,7 +42,7 @@ pytestmark = [
         assert_all_responses_were_requested=False,
         assert_all_requests_were_expected=False,
         can_send_already_matched_responses=True,
-        should_mock=lambda request: "docker" not in request.url.host,
+        should_mock=lambda request: request.url.path.startswith("/central"),
     ),
 ]
 
