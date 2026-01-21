@@ -94,8 +94,11 @@ async def test_cleaner_successful(
         assert "No files marked for removal, exiting." in caplog.text
 
 
+@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
 async def test_no_files_in_interrogation_bucket(
-    joint_fixture: JointFixture, httpx_mock: HTTPXMock, caplog
+    joint_fixture: JointFixture,
+    httpx_mock: HTTPXMock,
+    caplog,
 ):
     """Test that the cleaner handles an empty interrogation bucket gracefully."""
     # Don't pre-populate any objects in the interrogation bucket
@@ -107,12 +110,16 @@ async def test_no_files_in_interrogation_bucket(
     # Verify the bucket is empty
     assert await storage.list_all_object_ids(bucket) == []
 
-    # Create a mock response from the central API for an empty list
+    # Verify that the Central API isn't called (should quit)
     url = (
         f"{joint_fixture.config.central_api_url}/storages/"
         + f"{interrogation}/uploads/can_remove"
     )
-    httpx_mock.add_response(status_code=200, json=[], url=url, method="POST")
+
+    def callback(request: httpx.Request) -> httpx.Response:
+        raise RuntimeError("Was not supposed to call Central API!")
+
+    httpx_mock.add_callback(callback, url=url)
 
     # Run the scan and clean operation - should complete without errors
     with caplog.at_level("INFO"):
