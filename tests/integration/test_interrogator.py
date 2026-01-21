@@ -15,13 +15,16 @@
 
 """Integration tests for the Interrogator class"""
 
+import json
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 from pytest_httpx import HTTPXMock
 
 from dhfs.adapters.outbound.s3 import S3Client
 from dhfs.models import FileUpload
+from dhfs.ports.outbound.central import CentralClientPort
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import get_encrypted_object, upload_encrypted_object
 
@@ -89,18 +92,157 @@ async def test_interrogate_new_files(
         url=url_for_new_files, status_code=200, json=serialized_file_uploads
     )
 
+    # Track the interrogation reports received
+    received_reports = []
+
+    def capture_report(request: httpx.Request) -> httpx.Response:
+        """Callback to capture interrogation reports sent to the API"""
+        payload = json.loads(request.read().decode("utf-8"))
+        received_reports.append(payload)
+        return httpx.Response(status_code=201, json={})
+
     # Add callback for when we upload the file interrogation report
     url_for_reports = (
         f"{config.central_api_url}/storages/{interrogation}/interrogation-reports"
     )
-    httpx_mock.add_response(url=url_for_reports, status_code=201)
+    httpx_mock.add_callback(capture_report, url=url_for_reports)
 
     # Process all files
     await joint_fixture.interrogator.interrogate_new_files()
 
-    # Check the interrogation bucket (first patch central api call)
+    # Check the interrogation bucket
     # TODO: Expose S3Client
     s3_client: S3Client = joint_fixture.interrogator._s3_client  # type: ignore
     interrogation_files = await s3_client.list_files_in_interrogation_bucket()
 
     assert interrogation_files == object_ids, "Interrogation bucket contents differed"
+
+    # Verify that we received reports for all files
+    assert len(received_reports) == 2, (
+        f"Expected 2 reports, got {len(received_reports)}"
+    )
+
+    # Verify each report has the correct structure for successful interrogation
+    for report, file_upload in zip(received_reports, file_uploads, strict=True):
+        assert report["file_id"] == str(file_upload.id)
+        assert report["storage_alias"] == inbox
+        assert report["passed"] is True
+        assert report["reason"] is None
+        assert report["interrogated_at"] is not None
+        assert report["secret"] is not None
+        assert isinstance(report["encrypted_parts_md5"], list)
+        assert len(report["encrypted_parts_md5"]) > 0
+        assert isinstance(report["encrypted_parts_sha256"], list)
+        assert len(report["encrypted_parts_sha256"]) > 0
+
+
+async def test_report_failure(joint_fixture: JointFixture, httpx_mock: HTTPXMock):
+    """Test the content sent by .report_failure()"""
+    config = joint_fixture.config
+    interrogation = config.interrogation_storage_alias
+
+    # Generate a test file ID and failure reason
+    file_id = uuid4()
+    failure_reason = "Test failure: File decryption failed"
+
+    # Track the payload received by the callback
+    received_payload = None
+
+    def capture_payload(request: httpx.Request) -> httpx.Response:
+        """Callback to capture the payload sent to the API"""
+        nonlocal received_payload
+        received_payload = request.read().decode("utf-8")
+        return httpx.Response(status_code=201, json={})
+
+    # Mock the interrogation report submission endpoint with the callback
+    url_for_reports = (
+        f"{config.central_api_url}/storages/{interrogation}/interrogation-reports"
+    )
+    httpx_mock.add_callback(capture_payload, url=url_for_reports)
+
+    # Call report_failure
+    await joint_fixture.interrogator.report_failure(
+        file_id=file_id, reason=failure_reason
+    )
+
+    # Verify the payload was received
+    assert received_payload is not None, "No payload was received"
+
+    # Parse the JSON payload
+    payload = json.loads(received_payload)
+
+    # Verify the payload structure and content
+    assert payload["file_id"] == str(file_id)
+    assert payload["storage_alias"] == config.inbox_storage_alias
+    assert payload["passed"] is False
+    assert payload["reason"] == failure_reason
+    assert payload["interrogated_at"] is not None
+    assert payload["secret"] is None
+    assert payload["encrypted_parts_md5"] is None
+    assert payload["encrypted_parts_sha256"] is None
+
+
+async def test_api_down_during_report_submission(
+    joint_fixture: JointFixture, httpx_mock: HTTPXMock
+):
+    """Test to make sure the Interrogator class performs cleanup if the call to
+    the central API to submit the report fails.
+    """
+    # Create the inbox bucket
+    config = joint_fixture.config
+    inbox = config.inbox_storage_alias
+    bucket_id = config.object_storages[inbox].bucket
+    storage = joint_fixture.federated_s3.storages[inbox].storage
+    await storage.create_bucket(bucket_id)
+
+    # Add a file to the inbox
+    object_id = str(uuid4())
+    encrypted_object = get_encrypted_object(
+        part_size=PART_SIZE, file_size=int(PART_SIZE * 2.5)
+    )
+    await upload_encrypted_object(
+        bucket_id=inbox,
+        object_id=object_id,
+        storage=storage,
+        encrypted_object=encrypted_object,
+    )
+    file_upload = FileUpload(
+        id=UUID(object_id),
+        decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
+        storage_alias=inbox,
+        decrypted_size=encrypted_object.unencrypted_size,
+        encrypted_size=encrypted_object.encrypted_size,
+        part_size=PART_SIZE,
+    )
+
+    # Create the interrogation bucket
+    interrogation = config.interrogation_storage_alias
+    bucket_id = config.object_storages[interrogation].bucket
+    storage = joint_fixture.federated_s3.storages[interrogation].storage
+    await storage.create_bucket(bucket_id)
+
+    # Mock the endpoint that returns new files to interrogate
+    url_for_new_files = f"{config.central_api_url}/storages/{inbox}/uploads"
+    httpx_mock.add_response(
+        url=url_for_new_files,
+        status_code=200,
+        json=[file_upload.model_dump(mode="json")],
+    )
+
+    # Mock the report submission endpoint to fail (simulating API down)
+    url_for_reports = (
+        f"{config.central_api_url}/storages/{interrogation}/interrogation-reports"
+    )
+    httpx_mock.add_response(url=url_for_reports, status_code=500)
+
+    # Attempt to process files - this should fail but handle cleanup
+    with pytest.raises(CentralClientPort.CentralAPIError):
+        await joint_fixture.interrogator.interrogate_new_files()
+
+    # Verify that the interrogation bucket is empty (cleanup occurred)
+    s3_client: S3Client = joint_fixture.interrogator._s3_client  # type: ignore
+    interrogation_files = await s3_client.list_files_in_interrogation_bucket()
+
+    assert interrogation_files == [], (
+        "Interrogation bucket should be empty after failed report submission"
+    )

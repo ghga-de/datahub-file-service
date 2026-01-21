@@ -402,7 +402,17 @@ class Interrogator(InterrogatorPort):
             encrypted_parts_md5=[h.hex() for h in encrypted_parts_md5],
             encrypted_parts_sha256=[h.hex() for h in encrypted_parts_sha256],
         )
-        await self._central_client.submit_interrogation_report(report=report)
+        try:
+            await self._central_client.submit_interrogation_report(report=report)
+        except CentralClientPort.CentralAPIError:
+            await self._s3_client.remove_file(object_id=str(file_id))
+            log.warning(
+                "Interrogation report submission failed for file %s, so the file"
+                + " was removed from the interrogation bucket. Interrogation will have"
+                + " to be repeated.",
+                file_id,
+            )
+            raise
 
     async def report_failure(self, *, file_id: UUID4, reason: str) -> None:
         """Submit an InterrogationReport for an unsuccessful interrogation.
