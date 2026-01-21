@@ -27,7 +27,11 @@ from dhfs.models import FileUpload
 from dhfs.ports.outbound.central import CentralClientPort
 from dhfs.ports.outbound.interrogator import InterrogatorPort
 from tests.fixtures.joint import JointFixture
-from tests.fixtures.utils import get_encrypted_object, upload_encrypted_object
+from tests.fixtures.utils import (
+    EncryptedObject,
+    get_encrypted_object,
+    upload_encrypted_object,
+)
 
 PART_SIZE = 6 * (1024**2)  # 6291456 bytes
 
@@ -280,3 +284,200 @@ async def test_file_not_in_inbox(joint_fixture: JointFixture, httpx_mock: HTTPXM
     # Try to interrogate but expect a FileNotFoundError
     with pytest.raises(InterrogatorPort.FileNotFoundError):
         await joint_fixture.interrogator.interrogate_new_files()
+
+
+async def test_file_decryption_error(
+    joint_fixture: JointFixture, httpx_mock: HTTPXMock
+):
+    """Make sure that after a decryption problem we stop interrogation, abort the
+    active upload, and report failure to the central API.
+    """
+    # Create the inbox bucket
+    config = joint_fixture.config
+    inbox = config.inbox_storage_alias
+    bucket_id = config.object_storages[inbox].bucket
+    storage = joint_fixture.federated_s3.storages[inbox].storage
+    await storage.create_bucket(bucket_id)
+
+    # Create an encrypted object but corrupt its content to cause decryption failure
+    object_id = str(uuid4())
+    encrypted_object = get_encrypted_object(
+        part_size=PART_SIZE, file_size=int(PART_SIZE * 2.5)
+    )
+
+    # Corrupt the encrypted content (but keep the envelope intact)
+    corrupted_data = bytearray(encrypted_object.data)
+    # Corrupt some bytes in the encrypted content after the envelope
+    corruption_start = encrypted_object.offset + 100
+    for i in range(corruption_start, corruption_start + 50):
+        corrupted_data[i] = (corrupted_data[i] + 1) % 256
+
+    # Create a corrupted EncryptedObject with the same metadata but corrupted data
+    corrupted_object = EncryptedObject(
+        checksums=encrypted_object.checksums,
+        unencrypted_size=encrypted_object.unencrypted_size,
+        encrypted_size=encrypted_object.encrypted_size,
+        part_size=encrypted_object.part_size,
+        offset=encrypted_object.offset,
+        data=bytes(corrupted_data),
+    )
+
+    # Upload the object
+    await upload_encrypted_object(
+        bucket_id=inbox,
+        object_id=object_id,
+        storage=storage,
+        encrypted_object=corrupted_object,
+    )
+
+    file_upload = FileUpload(
+        id=UUID(object_id),
+        decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
+        storage_alias=inbox,
+        decrypted_size=encrypted_object.unencrypted_size,
+        encrypted_size=encrypted_object.encrypted_size,
+        part_size=PART_SIZE,
+    )
+
+    # Create the interrogation bucket
+    interrogation = config.interrogation_storage_alias
+    bucket_id = config.object_storages[interrogation].bucket
+    storage = joint_fixture.federated_s3.storages[interrogation].storage
+    await storage.create_bucket(bucket_id)
+
+    # Mock the endpoint that returns new files to interrogate
+    url_for_new_files = f"{config.central_api_url}/storages/{inbox}/uploads"
+    httpx_mock.add_response(
+        url=url_for_new_files,
+        status_code=200,
+        json=[file_upload.model_dump(mode="json")],
+    )
+
+    # Track the failure reports received
+    received_reports = []
+
+    def capture_report(request: httpx.Request) -> httpx.Response:
+        """Callback to capture failure reports sent to the API"""
+        payload = json.loads(request.read().decode("utf-8"))
+        received_reports.append(payload)
+        return httpx.Response(status_code=201, json={})
+
+    # Mock the report submission endpoint
+    url_for_reports = (
+        f"{config.central_api_url}/storages/{interrogation}/interrogation-reports"
+    )
+    httpx_mock.add_callback(capture_report, url=url_for_reports)
+
+    # Process files - should handle the decryption error gracefully
+    await joint_fixture.interrogator.interrogate_new_files()
+
+    # Verify that a failure report was submitted
+    assert len(received_reports) == 1, "Expected one failure report"
+    report = received_reports[0]
+    assert report["passed"] is False, "Report should indicate failure"
+    assert report["file_id"] == str(file_upload.id)
+
+    # The important thing is that passed=False and a report was submitted
+    assert report["reason"] is not None, "Reason field should exist"
+
+    # Verify that the interrogation bucket is empty (upload was aborted/cleaned up)
+    s3_client: S3Client = joint_fixture.interrogator._s3_client  # type: ignore
+    interrogation_files = await s3_client.list_files_in_interrogation_bucket()
+    assert interrogation_files == [], (
+        "Interrogation bucket should be empty after decryption failure"
+    )
+
+
+async def test_etag_doesnt_match_local_md5(
+    joint_fixture: JointFixture, httpx_mock: HTTPXMock, monkeypatch
+):
+    """Make sure that the Interrogator performs cleanup and calls report_failure()
+    if the md5 checksums don't match.
+    """
+    # Create the inbox bucket
+    config = joint_fixture.config
+    inbox = config.inbox_storage_alias
+    bucket_id = config.object_storages[inbox].bucket
+    storage = joint_fixture.federated_s3.storages[inbox].storage
+    await storage.create_bucket(bucket_id)
+
+    # Add a file to the inbox
+    object_id = str(uuid4())
+    encrypted_object = get_encrypted_object(
+        part_size=PART_SIZE, file_size=int(PART_SIZE * 2.5)
+    )
+    await upload_encrypted_object(
+        bucket_id=inbox,
+        object_id=object_id,
+        storage=storage,
+        encrypted_object=encrypted_object,
+    )
+    file_upload = FileUpload(
+        id=UUID(object_id),
+        decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
+        storage_alias=inbox,
+        decrypted_size=encrypted_object.unencrypted_size,
+        encrypted_size=encrypted_object.encrypted_size,
+        part_size=PART_SIZE,
+    )
+
+    # Create the interrogation bucket
+    interrogation = config.interrogation_storage_alias
+    bucket_id = config.object_storages[interrogation].bucket
+    storage = joint_fixture.federated_s3.storages[interrogation].storage
+    await storage.create_bucket(bucket_id)
+
+    # Mock the endpoint that returns new files to interrogate
+    url_for_new_files = f"{config.central_api_url}/storages/{inbox}/uploads"
+    httpx_mock.add_response(
+        url=url_for_new_files,
+        status_code=200,
+        json=[file_upload.model_dump(mode="json")],
+    )
+
+    # Track the failure reports received
+    received_reports = []
+
+    def capture_report(request: httpx.Request) -> httpx.Response:
+        """Callback to capture failure reports sent to the API"""
+        payload = json.loads(request.read().decode("utf-8"))
+        received_reports.append(payload)
+        return httpx.Response(status_code=201, json={})
+
+    # Mock the report submission endpoint
+    url_for_reports = (
+        f"{config.central_api_url}/storages/{interrogation}/interrogation-reports"
+    )
+    httpx_mock.add_callback(capture_report, url=url_for_reports)
+
+    # Monkeypatch the S3Client's complete_upload method
+    # to return a mismatched ETag
+    s3_client: S3Client = joint_fixture.interrogator._s3_client  # type: ignore
+    original_complete = s3_client.complete_upload
+
+    async def complete_with_wrong_etag(
+        upload_id: str, object_id: str, part_count: int
+    ) -> str:
+        """Return a wrong ETag to simulate checksum mismatch"""
+        await original_complete(
+            upload_id=upload_id, object_id=object_id, part_count=part_count
+        )
+        return "wrong-etag-12345-99"  # Fake ETag that won't match
+
+    monkeypatch.setattr(s3_client, "complete_upload", complete_with_wrong_etag)
+
+    # Process files - should handle the checksum mismatch error
+    await joint_fixture.interrogator.interrogate_new_files()
+
+    # Verify that a failure report was submitted
+    assert len(received_reports) == 1, "Expected one failure report"
+    report = received_reports[0]
+    assert report["passed"] is False, "Report should indicate failure"
+    assert report["file_id"] == str(file_upload.id)
+    assert report["reason"] is not None, "Reason field should exist"
+
+    # Verify that the interrogation bucket is empty (file was removed after mismatch)
+    interrogation_files = await s3_client.list_files_in_interrogation_bucket()
+    assert interrogation_files == [], (
+        "Interrogation bucket should be empty after checksum mismatch"
+    )
