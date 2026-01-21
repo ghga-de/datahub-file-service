@@ -129,6 +129,7 @@ async def test_no_files_in_interrogation_bucket(
     assert "No files to clean up, exiting." in caplog.text
 
 
+@pytest.mark.httpx_mock(assert_all_requests_were_expected=False)
 async def test_central_api_unreachable(
     joint_fixture: JointFixture,
     httpx_mock: HTTPXMock,
