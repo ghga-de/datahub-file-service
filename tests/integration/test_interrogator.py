@@ -25,6 +25,7 @@ from pytest_httpx import HTTPXMock
 from dhfs.adapters.outbound.s3 import S3Client
 from dhfs.models import FileUpload
 from dhfs.ports.outbound.central import CentralClientPort
+from dhfs.ports.outbound.interrogator import InterrogatorPort
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import get_encrypted_object, upload_encrypted_object
 
@@ -246,3 +247,36 @@ async def test_api_down_during_report_submission(
     assert interrogation_files == [], (
         "Interrogation bucket should be empty after failed report submission"
     )
+
+
+async def test_file_not_in_inbox(joint_fixture: JointFixture, httpx_mock: HTTPXMock):
+    """Make sure we abort the interrogation without reporting failure if an
+    expected file isn't found in the inbox.
+    """
+    # Create the inbox bucket
+    config = joint_fixture.config
+    inbox = config.inbox_storage_alias
+    bucket_id = config.object_storages[inbox].bucket
+    storage = joint_fixture.federated_s3.storages[inbox].storage
+    await storage.create_bucket(bucket_id)
+
+    file_upload = FileUpload(
+        id=uuid4(),
+        decrypted_sha256="abc123",
+        storage_alias=inbox,
+        decrypted_size=1024,
+        encrypted_size=1228,
+        part_size=PART_SIZE,
+    )
+
+    # Mock the endpoint that returns new files to interrogate
+    url_for_new_files = f"{config.central_api_url}/storages/{inbox}/uploads"
+    httpx_mock.add_response(
+        url=url_for_new_files,
+        status_code=200,
+        json=[file_upload.model_dump(mode="json")],
+    )
+
+    # Try to interrogate but expect a FileNotFoundError
+    with pytest.raises(InterrogatorPort.FileNotFoundError):
+        await joint_fixture.interrogator.interrogate_new_files()
