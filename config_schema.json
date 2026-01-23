@@ -231,6 +231,16 @@
       "type": "string",
       "writeOnly": true
     },
+    "data_hub": {
+      "description": "An alias identifying the Data Hub at which this instance of DHFS is running. This value should be set in coordination with GHGA Central.",
+      "examples": [
+        "HD",
+        "TUE",
+        "B"
+      ],
+      "title": "Data Hub",
+      "type": "string"
+    },
     "object_storages": {
       "additionalProperties": {
         "$ref": "#/$defs/S3ObjectStorageNodeConfig"
@@ -289,16 +299,6 @@
       "title": "Log Traceback",
       "type": "boolean"
     },
-    "data_hub": {
-      "description": "An alias identifying the Data Hub at which this instance of DHFS is running. This value should be set in coordination with GHGA Central.",
-      "examples": [
-        "HD",
-        "TUE",
-        "B"
-      ],
-      "title": "Data Hub",
-      "type": "string"
-    },
     "inbox_storage_alias": {
       "default": "inbox",
       "description": "The storage alias used to refer to the S3 'inbox' bucket and credentials, as configured in the `object_storages` field.",
@@ -317,9 +317,9 @@
     "central_api_crypt4gh_public_key",
     "central_api_url",
     "data_hub_signing_key",
+    "data_hub",
     "object_storages",
-    "service_instance_id",
-    "data_hub"
+    "service_instance_id"
   ],
   "title": "ModSettings",
   "type": "object"

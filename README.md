@@ -82,6 +82,21 @@ The service requires the following configuration parameters:
   "{\"crv\": \"P-256\", \"kty\": \"EC\", \"x\": \"...\", \"y\": \"...\", \"d\": \"...\"}"
   ```
 
+- <a id="properties/data_hub"></a>**`data_hub`** *(string, required)*: An alias identifying the Data Hub at which this instance of DHFS is running. This value should be set in coordination with GHGA Central.
+
+  Examples:
+  ```json
+  "HD"
+  ```
+
+  ```json
+  "TUE"
+  ```
+
+  ```json
+  "B"
+  ```
+
 - <a id="properties/object_storages"></a>**`object_storages`** *(object, required)*: Can contain additional properties.
   - <a id="properties/object_storages/additionalProperties"></a>**Additional properties**: Refer to *[#/$defs/S3ObjectStorageNodeConfig](#%24defs/S3ObjectStorageNodeConfig)*.
 - <a id="properties/log_level"></a>**`log_level`** *(string)*: The minimum log level to capture. Must be one of: "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", or "TRACE". Default: `"INFO"`.
