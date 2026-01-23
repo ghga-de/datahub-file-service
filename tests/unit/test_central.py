@@ -80,12 +80,7 @@ class JWTClaimsModel(BaseModel):
 async def configured_central_client(config: Config) -> AsyncGenerator[CentralClient]:
     """Yields a configured CentralClient instance"""
     async with get_configured_httpx_client(config=config, cached=False) as httpx_client:
-        yield CentralClient(
-            config=config,
-            inbox_storage_alias=config.inbox_storage_alias,
-            interrogation_storage_alias=config.interrogation_storage_alias,
-            httpx_client=httpx_client,
-        )
+        yield CentralClient(config=config, httpx_client=httpx_client)
 
 
 async def test_central_api_unavailable(config: Config, central_client):
@@ -123,7 +118,7 @@ async def test_jwt_formation(config: Config, httpx_mock: HTTPXMock):
         token = token.removeprefix("Bearer ")
         context = await auth_context_provider.get_context(token)
         assert context
-        assert context.sub == config.inbox_storage_alias
+        assert context.sub == config.data_hub
         assert context.iat - now_utc_ms_prec() < timedelta(seconds=3)
         return callback_return_value
 
@@ -132,12 +127,7 @@ async def test_jwt_formation(config: Config, httpx_mock: HTTPXMock):
 
     # Test the different methods from the CentralClient
     async with get_configured_httpx_client(config=config, cached=False) as httpx_client:
-        central_client = CentralClient(
-            config=config,
-            inbox_storage_alias=config.inbox_storage_alias,
-            interrogation_storage_alias=config.interrogation_storage_alias,
-            httpx_client=httpx_client,
-        )
+        central_client = CentralClient(config=config, httpx_client=httpx_client)
 
         # Register the callback (see callback_return_value defined above for the response)
         httpx_mock.add_callback(callback=callback)
@@ -146,7 +136,7 @@ async def test_jwt_formation(config: Config, httpx_mock: HTTPXMock):
 
         # Update the return value for this other call
         callback_return_value = httpx.Response(201)
-        report = make_interrogation_success_report(config.inbox_storage_alias)
+        report = make_interrogation_success_report(config.data_hub)
         await central_client.submit_interrogation_report(report=report)
 
 

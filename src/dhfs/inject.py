@@ -38,16 +38,9 @@ async def prepare_interrogator(*, config: Config) -> AsyncGenerator[Interrogator
         s3_client = await get_s3_client(
             config=config, object_storages=object_storages, httpx_client=httpx_client
         )
-        central_client = CentralClient(
-            config=config,
-            inbox_storage_alias=config.inbox_storage_alias,
-            interrogation_storage_alias=config.interrogation_storage_alias,
-            httpx_client=httpx_client,
-        )
+        central_client = CentralClient(config=config, httpx_client=httpx_client)
         yield Interrogator(
-            config=config,
-            central_client=central_client,
-            s3_client=s3_client,
+            config=config, central_client=central_client, s3_client=s3_client
         )
 
 
@@ -61,14 +54,7 @@ async def prepare_interrogation_bucket_cleaner(
         s3_client = await get_s3_client(
             config=config, object_storages=object_storages, httpx_client=httpx_client
         )
-        central_client = CentralClient(
-            config=config,
-            inbox_storage_alias=config.inbox_storage_alias,
-            interrogation_storage_alias=config.interrogation_storage_alias,
-            httpx_client=httpx_client,
-        )
+        central_client = CentralClient(config=config, httpx_client=httpx_client)
         yield S3Cleaner(
-            config=config,
-            central_client=central_client,
-            s3_client=s3_client,
+            config=config, central_client=central_client, s3_client=s3_client
         )

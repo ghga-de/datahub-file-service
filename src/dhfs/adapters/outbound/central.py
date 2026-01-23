@@ -47,6 +47,14 @@ class CentralClientConfig(BaseSettings):
         description="The Data Hub's private JWK for signing JWT auth tokens",
         examples=['{"crv": "P-256", "kty": "EC", "x": "...", "y": "...", "d": "..."}'],
     )
+    data_hub: str = Field(
+        default=...,
+        description=(
+            "An alias identifying the Data Hub at which this instance of DHFS is"
+            + " running. This value should be set in coordination with GHGA Central."
+        ),
+        examples=["HD", "TUE", "B"],
+    )
 
 
 class CentralClient(CentralClientPort):
@@ -56,14 +64,11 @@ class CentralClient(CentralClientPort):
         self,
         *,
         config: CentralClientConfig,
-        inbox_storage_alias: str,
-        interrogation_storage_alias: str,
         httpx_client: httpx.AsyncClient,
     ) -> None:
         """Initialize the CentralClient instance"""
         self._httpx_client = httpx_client
-        self._inbox_storage_alias = inbox_storage_alias
-        self._interrogation_storage_alias = interrogation_storage_alias
+        self._data_hub = config.data_hub
         self._central_public_key = config.central_api_crypt4gh_public_key
         self._base_url = str(config.central_api_url).rstrip("/")
         self._signing_key = JWK.from_json(
@@ -75,11 +80,7 @@ class CentralClient(CentralClientPort):
             raise key_error
 
     def _make_jwt(self) -> str:
-        claims: dict[str, str] = {
-            "iss": JWT_ISS,
-            "aud": JWT_AUD,
-            "sub": self._inbox_storage_alias,
-        }
+        claims: dict[str, str] = {"iss": JWT_ISS, "aud": JWT_AUD, "sub": self._data_hub}
         return sign_and_serialize_token(
             claims=claims, key=self._signing_key, valid_seconds=AUTH_TOKEN_VALID_SECONDS
         )
@@ -123,7 +124,7 @@ class CentralClient(CentralClientPort):
 
     async def fetch_new_uploads(self) -> list[models.FileUpload]:
         """Fetches a list of files that need to be interrogated and re-encrypted."""
-        url = f"{self._base_url}/storages/{self._inbox_storage_alias}/uploads"
+        url = f"{self._base_url}/hubs/{self._data_hub}/uploads"
 
         response = await self._httpx_client.get(url=url, headers=self._auth_header())
 
@@ -140,10 +141,7 @@ class CentralClient(CentralClientPort):
 
         Returns a list of file IDs that may be removed from the bucket.
         """
-        url = (
-            f"{self._base_url}/storages/{self._interrogation_storage_alias}"
-            + "/uploads/can_remove"
-        )
+        url = f"{self._base_url}/hubs/{self._data_hub}/uploads/can_remove"
         response = await self._httpx_client.post(
             url=url, json=file_ids, headers=self._auth_header()
         )
@@ -160,7 +158,7 @@ class CentralClient(CentralClientPort):
     ) -> None:
         """Submit a file interrogation report to GHGA Central"""
         body = report.model_dump(mode="json")
-        url = f"{self._base_url}/storages/{self._interrogation_storage_alias}/interrogation-reports"
+        url = f"{self._base_url}/hubs/{self._data_hub}/interrogation-reports"
 
         # Encrypt secret (core class doesn't know central api public key)
         if report.secret:

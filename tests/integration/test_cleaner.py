@@ -65,8 +65,8 @@ async def test_cleaner_successful(
 
     # Create a mock response from the central API
     url = (
-        f"{joint_fixture.config.central_api_url}/storages/"
-        + f"{interrogation}/uploads/can_remove"
+        f"{joint_fixture.config.central_api_url}/hubs/{joint_fixture.config.data_hub}"
+        + "/uploads/can_remove"
     )
     httpx_mock.add_response(
         status_code=200,
@@ -112,8 +112,8 @@ async def test_no_files_in_interrogation_bucket(
 
     # Verify that the Central API isn't called (should quit)
     url = (
-        f"{joint_fixture.config.central_api_url}/storages/"
-        + f"{interrogation}/uploads/can_remove"
+        f"{joint_fixture.config.central_api_url}/hubs/"
+        + f"{joint_fixture.config.data_hub}/uploads/can_remove"
     )
 
     def callback(request: httpx.Request) -> httpx.Response:

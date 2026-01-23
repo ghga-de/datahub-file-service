@@ -289,6 +289,16 @@
       "title": "Log Traceback",
       "type": "boolean"
     },
+    "data_hub": {
+      "description": "An alias identifying the Data Hub at which this instance of DHFS is running. This value should be set in coordination with GHGA Central.",
+      "examples": [
+        "HD",
+        "TUE",
+        "B"
+      ],
+      "title": "Data Hub",
+      "type": "string"
+    },
     "inbox_storage_alias": {
       "default": "inbox",
       "description": "The storage alias used to refer to the S3 'inbox' bucket and credentials, as configured in the `object_storages` field.",
@@ -308,7 +318,8 @@
     "central_api_url",
     "data_hub_signing_key",
     "object_storages",
-    "service_instance_id"
+    "service_instance_id",
+    "data_hub"
   ],
   "title": "ModSettings",
   "type": "object"

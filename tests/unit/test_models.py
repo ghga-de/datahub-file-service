@@ -29,6 +29,7 @@ def test_file_upload_offset():
     encrypted_object = get_encrypted_object(part_size=part_size)
     f = FileUpload(
         id=uuid4(),
+        data_hub="TUE",
         storage_alias="inbox",
         decrypted_sha256="test",
         decrypted_size=encrypted_object.unencrypted_size,
@@ -48,6 +49,7 @@ def test_calc_part_ranges():
 
     f = FileUpload(
         id=uuid4(),
+        data_hub="TUE",
         storage_alias="inbox",
         decrypted_sha256="test",
         decrypted_size=encrypted_object.unencrypted_size,
@@ -101,6 +103,7 @@ def test_calc_part_ranges_single_part():
 
     f = FileUpload(
         id=uuid4(),
+        data_hub="TUE",
         storage_alias="inbox",
         decrypted_sha256="test",
         decrypted_size=encrypted_object.unencrypted_size,

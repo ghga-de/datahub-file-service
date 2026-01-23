@@ -1,4 +1,5 @@
 service_instance_id: "1"
+data_hub: TESTHUB
 object_storages:
   inbox:
     bucket: inbox
