@@ -99,7 +99,7 @@ class S3ClientPort(ABC):
 
     @abstractmethod
     async def fetch_file_content_range(
-        self, *, object_id: str, start: int, stop: int
+        self, *, object_id: str, start: int, stop: int, bust_cache: bool = False
     ) -> bytes:
         """Download a single file part for the bytes in range `start` - `stop` (exclusive end, like Python slicing).
 
