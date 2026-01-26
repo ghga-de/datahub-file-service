@@ -370,8 +370,7 @@ class S3Client(S3ClientPort):
                 anticipated_part_quantity=part_count,
             )
             # Remove download url from cache
-            with suppress(KeyError):
-                del self._download_url_cache[object_id]
+            self._download_url_cache.pop(object_id, None)
 
             # We need to compare S3 ETag with locally calculated MD5, so fetch the etag
             etag = await self._interrogation_storage.get_object_etag(
