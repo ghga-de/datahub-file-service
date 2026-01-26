@@ -41,7 +41,7 @@ class StorageAliasNotConfiguredError(RuntimeError):
     def __init__(self, *, alias: str):
         message = (
             f"Could not find a storage configuration for alias {alias}.\n"
-            + "Check íf your multi node configuration contains a corresponding entry."
+            + "Check if your multi node configuration contains a corresponding entry."
         )
         super().__init__(message)
 
