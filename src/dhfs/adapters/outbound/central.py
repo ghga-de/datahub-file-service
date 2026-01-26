@@ -87,8 +87,7 @@ class CentralClient(CentralClientPort):
 
     def _auth_header(self) -> dict[str, str]:
         """Create an authorization header with a bearer token containing a fresh JWT"""
-        headers = {"Authorization": f"Bearer {self._make_jwt()}"}
-        return headers
+        return {"Authorization": f"Bearer {self._make_jwt()}"}
 
     def _response_to_file_id_list(self, response: httpx.Response) -> list[str]:
         """Extract a boolean value from an httpx Response.
