@@ -52,4 +52,4 @@ class Checksums:
         concatenated_md5s = b"".join(self.encrypted_md5)
         object_md5 = hashlib.md5(concatenated_md5s, usedforsecurity=False).hexdigest()
         num_parts = len(self.encrypted_md5)
-        return object_md5 + f"-{num_parts}"
+        return f"{object_md5}-{num_parts}"
