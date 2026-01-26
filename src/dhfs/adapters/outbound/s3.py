@@ -197,7 +197,7 @@ class S3Client(S3ClientPort):
             f"Received a {status_code} error when trying to download file {object_id}"
             + f" from bucket {self._inbox_bucket_id}."
         )
-        log.error(error, extra={"response_detail": response.content.decode("ascii")})
+        log.error(error, extra={"response_detail": response.content.decode("ascii", errors="ignore")})
         raise error
 
     async def init_interrogation_bucket_upload(self, *, object_id: str) -> str:
