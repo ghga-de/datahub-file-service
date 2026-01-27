@@ -90,7 +90,7 @@ class CentralClient(CentralClientPort):
         return {"Authorization": f"Bearer {self._make_jwt()}"}
 
     def _response_to_file_id_list(self, response: httpx.Response) -> list[str]:
-        """Extract a boolean value from an httpx Response.
+        """Returns a list of strings from an httpx Response.
 
         Raises:
         - ResponseFormatError if response body parsing fails.
