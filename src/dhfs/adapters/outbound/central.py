@@ -122,7 +122,11 @@ class CentralClient(CentralClientPort):
             raise error from err
 
     async def fetch_new_uploads(self) -> list[models.FileUpload]:
-        """Fetches a list of files that need to be interrogated and re-encrypted."""
+        """Fetch a list of files that need to be interrogated and re-encrypted.
+
+        Raises:
+        - CentralAPIError if the request to the central API fails.
+        """
         url = f"{self._base_url}/hubs/{self._data_hub}/uploads"
 
         response = await self._httpx_client.get(url=url, headers=self._auth_headers())
@@ -135,10 +139,13 @@ class CentralClient(CentralClientPort):
             raise error
 
     async def get_removable_files(self, *, file_ids: list[str]) -> list[str]:
-        """Asks the GHGA Central API if the objects corresponding to the given file IDs
+        """Ask the GHGA Central API if the objects corresponding to the given file IDs
         can be removed from `interrogation` bucket.
 
         Returns a list of file IDs that may be removed from the bucket.
+
+        Raises:
+        - CentralAPIError if the request to the central API fails.
         """
         url = f"{self._base_url}/hubs/{self._data_hub}/uploads/can_remove"
         response = await self._httpx_client.post(
@@ -155,7 +162,11 @@ class CentralClient(CentralClientPort):
     async def submit_interrogation_report(
         self, *, report: models.InterrogationReport
     ) -> None:
-        """Submit a file interrogation report to GHGA Central"""
+        """Submit a file interrogation report to GHGA Central
+
+        Raises:
+        - CentralAPIError if the request to the central API fails.
+        """
         body = report.model_dump(mode="json")
         url = f"{self._base_url}/hubs/{self._data_hub}/interrogation-reports"
 

@@ -44,19 +44,30 @@ class CentralClientPort(ABC):
 
     @abstractmethod
     async def fetch_new_uploads(self) -> list[FileUpload]:
-        """Fetches a list of files that need to be interrogated and re-encrypted."""
+        """Fetch a list of files that need to be interrogated and re-encrypted.
+
+        Raises:
+        - CentralAPIError if the request to the central API fails.
+        """
         ...
 
     @abstractmethod
     async def get_removable_files(self, *, file_ids: list[str]) -> list[str]:
-        """Asks the GHGA Central API if the objects corresponding to the given file IDs
+        """Ask the GHGA Central API if the objects corresponding to the given file IDs
         can be removed from `interrogation` bucket.
 
         Returns a list of file IDs that may be removed from the bucket.
+
+        Raises:
+        - CentralAPIError if the request to the central API fails.
         """
         ...
 
     @abstractmethod
     async def submit_interrogation_report(self, *, report: InterrogationReport) -> None:
-        """Submit a file interrogation report to GHGA Central"""
+        """Submit a file interrogation report to GHGA Central
+
+        Raises:
+        - CentralAPIError if the request to the central API fails.
+        """
         ...
