@@ -56,7 +56,7 @@ class S3ClientPort(ABC):
     class UploadInitError(InconclusiveError):
         """Raised when there's a problem initiating an upload to the interrogation bucket."""
 
-    class UploadError(InconclusiveError):
+    class UploadPartError(InconclusiveError):
         """Raised when there's a problem uploading a file part to the interrogation bucket."""
 
     class BadPartMD5Error(ConclusiveError):

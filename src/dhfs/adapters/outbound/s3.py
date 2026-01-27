@@ -255,7 +255,7 @@ class S3Client(S3ClientPort):
             )
             raise bucket_error from err
         except ObjectStorageProtocol.MultiPartUploadNotFoundError as err:
-            error = self.UploadError(
+            error = self.UploadPartError(
                 f"Failed to get part upload URL for upload {upload_id} because the"
                 + " upload does not exist."
             )
@@ -310,7 +310,7 @@ class S3Client(S3ClientPort):
                 raise md5_error
             else:
                 detail = response.content.decode()
-                upload_error = self.UploadError(
+                upload_error = self.UploadPartError(
                     f"Failed to upload part {part_no} for file {object_id}. Status"
                     + f" code is {response.status_code}. Detail: {detail}"
                 )

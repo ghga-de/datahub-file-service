@@ -177,7 +177,7 @@ async def test_upload_file_part(joint_fixture: JointFixture, s3_client: S3Client
     await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Try to upload file part when bucket exists but upload does not
-    with pytest.raises(S3Client.UploadError):
+    with pytest.raises(S3Client.UploadPartError):
         await s3_client.upload_file_part(
             upload_id="bogus",
             object_id=object_id,
