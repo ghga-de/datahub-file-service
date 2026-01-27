@@ -21,8 +21,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 
 import pytest_asyncio
-from hexkit.providers.s3.provider import S3Config
-from hexkit.providers.s3.testutils import FederatedS3Fixture
+from hexkit.providers.s3.testutils import S3Fixture
 
 from dhfs.config import Config
 from dhfs.inject import prepare_interrogation_bucket_cleaner, prepare_interrogator
@@ -37,38 +36,25 @@ class JointFixture:
     config: Config
     s3_cleaner: S3CleanerPort
     interrogator: InterrogatorPort
-    federated_s3: FederatedS3Fixture
-
-
-def patch_config_for_alias(
-    alias: str, s3_config: S3Config, original_config: Config
-) -> Config:
-    """Update the full config instance with the given s3 config for the given alias."""
-    dumped = original_config.model_dump()
-    dumped["object_storages"][alias]["credentials"] = s3_config
-    return Config(**dumped)
+    s3: S3Fixture
 
 
 @pytest_asyncio.fixture(scope="function")
-async def joint_fixture(
-    federated_s3: FederatedS3Fixture,
-    config: Config,
-) -> AsyncGenerator[JointFixture]:
+async def joint_fixture(s3: S3Fixture, config: Config) -> AsyncGenerator[JointFixture]:
     """A fixture that embeds all other fixtures for API-level integration testing."""
     # Patch the config so the URL/credentials point to the actual S3 testcontainers
-    for storage_alias, s3_config in federated_s3.get_configs_by_alias().items():
-        config = patch_config_for_alias(
-            storage_alias, s3_config=s3_config, original_config=config
-        )
+    _patched_config = config.model_dump()
+    _patched_config.update(s3.config.model_dump())
+    patched_config = Config(**_patched_config)
 
     # Assemble joint fixture with config injection
     async with (
-        prepare_interrogation_bucket_cleaner(config=config) as s3_cleaner,
-        prepare_interrogator(config=config) as interrogator,
+        prepare_interrogation_bucket_cleaner(config=patched_config) as s3_cleaner,
+        prepare_interrogator(config=patched_config) as interrogator,
     ):
         yield JointFixture(
-            config=config,
+            config=patched_config,
             s3_cleaner=s3_cleaner,
             interrogator=interrogator,
-            federated_s3=federated_s3,
+            s3=s3,
         )

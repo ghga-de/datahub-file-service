@@ -1,18 +1,8 @@
 service_instance_id: "1"
 data_hub: TESTHUB
-object_storages:
-  inbox:
-    bucket: inbox
-    credentials:
-      s3_endpoint_url: http://localstack:4566
-      s3_access_key_id: test
-      s3_secret_access_key: test
-  interrogation:
-    bucket: interrogation
-    credentials:
-      s3_endpoint_url: http://localstack:4566
-      s3_access_key_id: test
-      s3_secret_access_key: test
+s3_endpoint_url: http://localstack:4566
+s3_access_key_id: test
+s3_secret_access_key: test
 central_api_url: http://127.0.0.1:8000/central
 central_api_crypt4gh_public_key: dWoWghAEVPcpHILEb5drJx59nF+of6YKuAOhKRpmegY=
 data_hub_crypt4gh_private_key_path: ./key.sec

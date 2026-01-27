@@ -54,8 +54,8 @@ class Interrogator(InterrogatorPort):
         s3_client: S3ClientPort,
     ):
         """Initialize the Interrogator"""
-        self._inbox_storage_alias = config.inbox_storage_alias
-        self._interrogation_storage_alias = config.interrogation_storage_alias
+        self._inbox_bucket_name = config.inbox_bucket_id
+        self._interrogation_bucket_name = config.interrogation_bucket_id
         self._central_client = central_client
         self._data_hub_private_key = SecretBytes(
             get_private_key(
@@ -395,7 +395,7 @@ class Interrogator(InterrogatorPort):
         """
         report = InterrogationReport(
             file_id=file_id,
-            storage_alias=self._inbox_storage_alias,
+            storage_alias=self._inbox_bucket_name,
             interrogated_at=now_utc_ms_prec(),
             passed=True,
             secret=secret,
@@ -422,7 +422,7 @@ class Interrogator(InterrogatorPort):
         """
         report = InterrogationReport(
             file_id=file_id,
-            storage_alias=self._inbox_storage_alias,
+            storage_alias=self._inbox_bucket_name,
             interrogated_at=now_utc_ms_prec(),
             passed=False,
             reason=reason,

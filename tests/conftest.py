@@ -17,12 +17,12 @@
 
 import pytest
 from hexkit.providers.s3.testutils import (  # noqa: F401
-    federated_s3_fixture,
-    s3_multi_container_fixture,
+    s3_container_fixture,
+    s3_fixture,
 )
 
 from dhfs.config import Config
-from tests.fixtures.config import DEFAULT_TEST_CONFIG, get_config
+from tests.fixtures.config import get_config
 from tests.fixtures.joint import joint_fixture  # noqa: F401
 from tests.fixtures.utils import (
     CENTRAL_CRYPT4GH_PUBLIC_KEY,
@@ -39,12 +39,3 @@ def config_fixture() -> Config:
         data_hub_signing_key=DHFS_SIGNING_KEY,
         central_api_crypt4gh_public_key=CENTRAL_CRYPT4GH_PUBLIC_KEY,
     )
-
-
-@pytest.fixture(scope="session")
-def storage_aliases():
-    """Supplies the aliases to the federated S3 fixture.
-
-    This tells it how many S3 storages to spin up and what names to associate with them.
-    """
-    return [alias for alias in DEFAULT_TEST_CONFIG.object_storages]

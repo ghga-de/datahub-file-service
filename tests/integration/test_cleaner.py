@@ -16,6 +16,7 @@
 
 import httpx
 import pytest
+from hexkit.providers.s3.testutils import temp_file_object
 from pytest_httpx import HTTPXMock
 
 from tests.fixtures.joint import JointFixture
@@ -47,21 +48,20 @@ async def test_cleaner_successful(
 ):
     """Test that files can be removed from the interrogation bucket."""
     # Pre-populate some objects in the interrogation bucket
-    interrogation = joint_fixture.config.interrogation_storage_alias
-    bucket = joint_fixture.config.object_storages[interrogation].bucket
+    interrogation = joint_fixture.config.interrogation_bucket_id
     file_ids = [
         "18d50867-fbef-4a32-8f70-e81766383980",
         "1969264c-3abe-44e6-8db9-65612d6c6a90",
         "a7084f3d-f4cb-4333-853c-bc1e400f14ba",
     ]
-    contents = {bucket: file_ids}
-    await joint_fixture.federated_s3.populate_dummy_items(
-        alias=interrogation, contents=contents
-    )
+    for file_id in file_ids:
+        with temp_file_object(bucket_id=interrogation, object_id=str(file_id)) as file:
+            await joint_fixture.s3.populate_file_objects([file])
 
     # Now verify that the expected items appear in the interrogation bucket
-    storage = joint_fixture.federated_s3.storages[interrogation].storage
-    assert set(await storage.list_all_object_ids(bucket)) == set(file_ids)
+    assert set(
+        await joint_fixture.s3.storage.list_all_object_ids(interrogation)
+    ) == set(file_ids)
 
     # Create a mock response from the central API
     url = (
@@ -80,7 +80,7 @@ async def test_cleaner_successful(
         await joint_fixture.s3_cleaner.scan_and_clean()
 
     # Check that only the removable_files were deleted from the bucket
-    remaining_files = await storage.list_all_object_ids(bucket)
+    remaining_files = await joint_fixture.s3.storage.list_all_object_ids(interrogation)
     assert set(remaining_files) == set(file_ids) - set(removable_files)
 
     # Verify log messages based on test case
@@ -102,13 +102,11 @@ async def test_no_files_in_interrogation_bucket(
 ):
     """Test that the cleaner handles an empty interrogation bucket gracefully."""
     # Don't pre-populate any objects in the interrogation bucket
-    interrogation = joint_fixture.config.interrogation_storage_alias
-    bucket = joint_fixture.config.object_storages[interrogation].bucket
-    storage = joint_fixture.federated_s3.storages[interrogation].storage
-    await storage.create_bucket(interrogation)
+    interrogation = joint_fixture.config.interrogation_bucket_id
+    await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Verify the bucket is empty
-    assert await storage.list_all_object_ids(bucket) == []
+    assert await joint_fixture.s3.storage.list_all_object_ids(interrogation) == []
 
     # Verify that the Central API isn't called (should quit)
     url = (
@@ -137,16 +135,14 @@ async def test_central_api_unreachable(
 ):
     """Make sure the S3Cleaner handles Central API connection failures."""
     # Pre-populate some objects in the interrogation bucket
-    interrogation = joint_fixture.config.interrogation_storage_alias
-    bucket = joint_fixture.config.object_storages[interrogation].bucket
+    interrogation = joint_fixture.config.interrogation_bucket_id
     file_ids = [
         "18d50867-fbef-4a32-8f70-e81766383980",
         "1969264c-3abe-44e6-8db9-65612d6c6a90",
     ]
-    contents = {bucket: file_ids}
-    await joint_fixture.federated_s3.populate_dummy_items(
-        alias=interrogation, contents=contents
-    )
+    for file_id in file_ids:
+        with temp_file_object(bucket_id=interrogation, object_id=str(file_id)) as file:
+            await joint_fixture.s3.populate_file_objects([file])
 
     # The cleaner should raise an exception when unable to reach the API
     with caplog.at_level("ERROR"), pytest.raises(httpx.TimeoutException):
@@ -156,6 +152,5 @@ async def test_central_api_unreachable(
     assert "Failed to fetch removable files from Central API" in caplog.text
 
     # Verify that no files were deleted (operation failed before deletion)
-    storage = joint_fixture.federated_s3.storages[interrogation].storage
-    remaining_files = await storage.list_all_object_ids(bucket)
+    remaining_files = await joint_fixture.s3.storage.list_all_object_ids(interrogation)
     assert set(remaining_files) == set(file_ids)

@@ -93,7 +93,7 @@ async def test_central_api_unavailable(config: Config, central_client):
         await central_client.get_removable_files(file_ids=["abc123"])
 
     with pytest.raises(httpx.ConnectError):
-        report = make_interrogation_success_report(config.inbox_storage_alias)
+        report = make_interrogation_success_report(config.inbox_bucket_id)
         await central_client.submit_interrogation_report(report=report)
 
 
@@ -167,7 +167,7 @@ async def test_500_response_handling(
         await central_client.get_removable_files(file_ids=[])
 
     with pytest.raises(CentralClient.CentralAPIError):
-        report = make_interrogation_success_report(config.inbox_storage_alias)
+        report = make_interrogation_success_report(config.inbox_bucket_id)
         await central_client.submit_interrogation_report(report=report)
 
 
@@ -176,8 +176,8 @@ async def test_report_submission(config: Config, central_client, httpx_mock: HTT
     with the Central API public key, as well as that other fields are submitted.
     """
     # Define one successful and one failed interrogation report
-    success_report = make_interrogation_success_report(config.inbox_storage_alias)
-    fail_report = make_interrogation_failure_report(config.inbox_storage_alias)
+    success_report = make_interrogation_success_report(config.inbox_bucket_id)
+    fail_report = make_interrogation_failure_report(config.inbox_bucket_id)
 
     # Define an httpx_mock callback to let us inspect the request body
     def callback(request: httpx.Request):

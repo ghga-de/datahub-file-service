@@ -17,11 +17,9 @@
 
 import base64
 import logging
-from dataclasses import dataclass
 
 import httpx
 from async_lru import alru_cache
-from ghga_service_commons.utils.multinode_storage import S3ObjectStorages
 from hexkit.protocols.objstorage import ObjectStorageProtocol
 from pydantic import UUID4
 from tenacity import RetryError
@@ -37,40 +35,7 @@ from dhfs.ports.outbound.s3 import S3ClientPort
 
 log = logging.getLogger(__name__)
 
-__all__ = ["S3Client", "StorageAliasNotConfiguredError"]
-
-
-class StorageAliasNotConfiguredError(RuntimeError):
-    """Raised when looking up an object storage configuration by alias fails."""
-
-    def __init__(self, *, alias: str):
-        message = (
-            f"Could not find a storage configuration for alias {alias}.\n"
-            + "Check if your multi node configuration contains a corresponding entry."
-        )
-        super().__init__(message)
-
-
-async def _get_bucket_and_storage(
-    object_storages: S3ObjectStorages, storage_alias: str
-) -> tuple[str, ObjectStorageProtocol]:
-    """Returns the bucket ID and object storage instance for an alias with error handling"""
-    try:
-        return object_storages.for_alias(storage_alias)
-    except KeyError as exc:
-        storage_alias_not_configured = StorageAliasNotConfiguredError(
-            alias=storage_alias
-        )
-        log.critical(storage_alias_not_configured)
-        raise storage_alias_not_configured from exc
-
-
-@dataclass
-class Storage:
-    """A model encapsulating a bucket ID and object storage instance"""
-
-    bucket_id: str
-    object_storage: ObjectStorageProtocol
+__all__ = ["S3Client"]
 
 
 class S3Client(S3ClientPort):
@@ -80,20 +45,18 @@ class S3Client(S3ClientPort):
         self,
         *,
         config: Config,
-        inbox_storage: Storage,
-        interrogation_storage: Storage,
+        object_storage: ObjectStorageProtocol,
         httpx_client: httpx.AsyncClient,
     ) -> None:
         self._config = config
-        self._inbox_bucket_id = inbox_storage.bucket_id
-        self._inbox_storage = inbox_storage.object_storage
-        self._interrogation_bucket_id = interrogation_storage.bucket_id
-        self._interrogation_storage = interrogation_storage.object_storage
+        self._storage = object_storage
+        self._inbox_bucket_id = config.inbox_bucket_id
+        self._interrogation_bucket_id = config.interrogation_bucket_id
         self._httpx_client = httpx_client
 
     async def get_is_file_in_inbox(self, *, file_id: UUID4) -> bool:
         """Return a bool indicating whether the file exists in the inbox"""
-        return await self._inbox_storage.does_object_exist(
+        return await self._storage.does_object_exist(
             bucket_id=self._inbox_bucket_id, object_id=str(file_id)
         )
 
@@ -104,7 +67,7 @@ class S3Client(S3ClientPort):
         - BucketNotFoundError if the interrogation bucket doesn't exist.
         """
         try:
-            object_ids = await self._interrogation_storage.list_all_object_ids(
+            object_ids = await self._storage.list_all_object_ids(
                 bucket_id=self._interrogation_bucket_id
             )
             log.info(
@@ -132,7 +95,7 @@ class S3Client(S3ClientPort):
         Relies on cache to prevent excessive outbound calls.
         """
         try:
-            download_url = await self._inbox_storage.get_object_download_url(
+            download_url = await self._storage.get_object_download_url(
                 bucket_id=self._inbox_bucket_id,
                 object_id=object_id,
                 expires_after=DOWNLOAD_URL_LIFESPAN,
@@ -219,7 +182,7 @@ class S3Client(S3ClientPort):
         - BucketNotFoundError if the interrogation bucket doesn't exist.
         """
         try:
-            upload_id = await self._interrogation_storage.init_multipart_upload(
+            upload_id = await self._storage.init_multipart_upload(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             )
             log.info(
@@ -268,7 +231,7 @@ class S3Client(S3ClientPort):
         # Convert MD5 to base64 for S3
         md5_base64 = base64.b64encode(part_md5).decode()
         try:
-            return await self._interrogation_storage.get_part_upload_url(
+            return await self._storage.get_part_upload_url(
                 upload_id=upload_id,
                 bucket_id=self._interrogation_bucket_id,
                 object_id=object_id,
@@ -374,7 +337,7 @@ class S3Client(S3ClientPort):
         }
         try:
             # Complete the upload
-            await self._interrogation_storage.complete_multipart_upload(
+            await self._storage.complete_multipart_upload(
                 upload_id=upload_id,
                 bucket_id=self._interrogation_bucket_id,
                 object_id=object_id,
@@ -382,7 +345,7 @@ class S3Client(S3ClientPort):
             )
 
             # We need to compare S3 ETag with locally calculated MD5, so fetch the etag
-            etag = await self._interrogation_storage.get_object_etag(
+            etag = await self._storage.get_object_etag(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             )
 
@@ -409,7 +372,7 @@ class S3Client(S3ClientPort):
             raise part_count_error from err
         except ObjectStorageProtocol.MultiPartUploadNotFoundError as err:
             # This isn't as critical as the BucketNotFoundError as it's not a config issue.
-            if not await self._interrogation_storage.does_object_exist(
+            if not await self._storage.does_object_exist(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             ):
                 error = self.UploadCompletionError(
@@ -421,7 +384,7 @@ class S3Client(S3ClientPort):
             # If the object exists, then the UploadNotFoundError must have occurred
             #  due to some timing hiccup -- the file is there so we can squash the error
             #  and return the existing etag
-            return await self._interrogation_storage.get_object_etag(
+            return await self._storage.get_object_etag(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             )
         except Exception as err:
@@ -449,7 +412,7 @@ class S3Client(S3ClientPort):
         }
 
         try:
-            await self._interrogation_storage.abort_multipart_upload(
+            await self._storage.abort_multipart_upload(
                 upload_id=upload_id,
                 bucket_id=self._interrogation_bucket_id,
                 object_id=object_id,
@@ -489,7 +452,7 @@ class S3Client(S3ClientPort):
         - S3CleanupError if an unexpected error occurs while deleting the file.
         """
         try:
-            await self._interrogation_storage.delete_object(
+            await self._storage.delete_object(
                 bucket_id=self._interrogation_bucket_id,
                 object_id=object_id,
             )
@@ -531,27 +494,3 @@ class S3Client(S3ClientPort):
                 },
             )
             raise error from err
-
-
-async def get_s3_client(
-    *,
-    config: Config,
-    object_storages: S3ObjectStorages,
-    httpx_client: httpx.AsyncClient,
-) -> S3Client:
-    """Construct a configured S3Client instance"""
-    inbox = await _get_bucket_and_storage(
-        object_storages=object_storages, storage_alias=config.inbox_storage_alias
-    )
-    inbox_storage = Storage(*inbox)
-    interrogation = await _get_bucket_and_storage(
-        object_storages=object_storages,
-        storage_alias=config.interrogation_storage_alias,
-    )
-    interrogation_storage = Storage(*interrogation)
-    return S3Client(
-        config=config,
-        inbox_storage=inbox_storage,
-        interrogation_storage=interrogation_storage,
-        httpx_client=httpx_client,
-    )

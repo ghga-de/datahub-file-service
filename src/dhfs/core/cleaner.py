@@ -39,7 +39,7 @@ class S3Cleaner(S3CleanerPort):
     ):
         self._client = central_client
         self._s3_client = s3_client
-        self._interrogation_storage_alias = config.interrogation_storage_alias
+        self._interrogation_storage_alias = config.interrogation_bucket_id
 
     async def scan_and_clean(self):
         """Get a list of all objects in the 'interrogation' bucket, then query the

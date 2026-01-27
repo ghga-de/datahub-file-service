@@ -18,9 +18,9 @@
 from pathlib import Path
 
 from ghga_service_commons.transports import CompositeCacheConfig
-from ghga_service_commons.utils.multinode_storage import S3ObjectStoragesConfig
 from hexkit.config import config_from_yaml
 from hexkit.log import LoggingConfig
+from hexkit.providers.s3 import S3Config
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
@@ -49,26 +49,20 @@ class Crypt4GHConfig(BaseSettings):
 @config_from_yaml(prefix=SERVICE_NAME)
 class Config(
     LoggingConfig,
-    S3ObjectStoragesConfig,
+    S3Config,
     CentralClientConfig,
     CompositeCacheConfig,
     Crypt4GHConfig,
 ):
     """Config parameters and their defaults."""
 
-    inbox_storage_alias: str = Field(
+    inbox_bucket_id: str = Field(
         default="inbox",
-        description=(
-            "The storage alias used to refer to the S3 'inbox' bucket and"
-            + " credentials, as configured in the `object_storages` field."
-        ),
+        description="The name for the S3 'inbox' bucket",
     )
-    interrogation_storage_alias: str = Field(
+    interrogation_bucket_id: str = Field(
         default="interrogation",
-        description=(
-            "The storage alias used to refer to the S3 'interrogation' bucket and"
-            + " credentials, as configured in the `object_storages` field."
-        ),
+        description="The name for the S3 'interrogation' bucket",
     )
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"

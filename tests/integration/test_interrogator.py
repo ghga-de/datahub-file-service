@@ -53,10 +53,8 @@ async def test_interrogate_new_files(
     """Test the interrogation process for a single file"""
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_storage_alias
-    bucket_id = config.object_storages[inbox].bucket
-    storage = joint_fixture.federated_s3.storages[inbox].storage
-    await storage.create_bucket(bucket_id)
+    inbox = config.inbox_bucket_id
+    await joint_fixture.s3.storage.create_bucket(inbox)
 
     # Add files to the inbox
     object_ids = sorted([str(uuid4()) for _ in range(2)])
@@ -68,7 +66,7 @@ async def test_interrogate_new_files(
         await upload_encrypted_object(
             bucket_id=inbox,
             object_id=object_id,
-            storage=storage,
+            storage=joint_fixture.s3.storage,
             encrypted_object=encrypted_object,
         )
         file_uploads.append(
@@ -84,10 +82,8 @@ async def test_interrogate_new_files(
         )
 
     # Create the interrogation bucket so the re-encrypted files have a place to go
-    interrogation = joint_fixture.config.interrogation_storage_alias
-    bucket_id = joint_fixture.config.object_storages[interrogation].bucket
-    storage = joint_fixture.federated_s3.storages[interrogation].storage
-    await storage.create_bucket(bucket_id)
+    interrogation = joint_fixture.config.interrogation_bucket_id
+    await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Serialize the file uploads we prepared in advance to JSON
     serialized_file_uploads = [x.model_dump(mode="json") for x in file_uploads]
@@ -178,7 +174,7 @@ async def test_report_failure(joint_fixture: JointFixture, httpx_mock: HTTPXMock
 
     # Verify the payload structure and content
     assert payload["file_id"] == str(file_id)
-    assert payload["storage_alias"] == config.inbox_storage_alias
+    assert payload["storage_alias"] == config.inbox_bucket_id
     assert payload["passed"] is False
     assert payload["reason"] == failure_reason
     assert payload["interrogated_at"] is not None
@@ -195,10 +191,8 @@ async def test_api_down_during_report_submission(
     """
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_storage_alias
-    bucket_id = config.object_storages[inbox].bucket
-    storage = joint_fixture.federated_s3.storages[inbox].storage
-    await storage.create_bucket(bucket_id)
+    inbox = config.inbox_bucket_id
+    await joint_fixture.s3.storage.create_bucket(inbox)
 
     # Add a file to the inbox
     object_id = str(uuid4())
@@ -208,7 +202,7 @@ async def test_api_down_during_report_submission(
     await upload_encrypted_object(
         bucket_id=inbox,
         object_id=object_id,
-        storage=storage,
+        storage=joint_fixture.s3.storage,
         encrypted_object=encrypted_object,
     )
     file_upload = FileUpload(
@@ -222,10 +216,8 @@ async def test_api_down_during_report_submission(
     )
 
     # Create the interrogation bucket
-    interrogation = config.interrogation_storage_alias
-    bucket_id = config.object_storages[interrogation].bucket
-    storage = joint_fixture.federated_s3.storages[interrogation].storage
-    await storage.create_bucket(bucket_id)
+    interrogation = config.interrogation_bucket_id
+    await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Mock the endpoint that returns new files to interrogate
     url_for_new_files = f"{config.central_api_url}/hubs/{config.data_hub}/uploads"
@@ -260,10 +252,8 @@ async def test_file_not_in_inbox(joint_fixture: JointFixture, httpx_mock: HTTPXM
     """
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_storage_alias
-    bucket_id = config.object_storages[inbox].bucket
-    storage = joint_fixture.federated_s3.storages[inbox].storage
-    await storage.create_bucket(bucket_id)
+    inbox = config.inbox_bucket_id
+    await joint_fixture.s3.storage.create_bucket(inbox)
 
     file_upload = FileUpload(
         id=uuid4(),
@@ -296,10 +286,8 @@ async def test_file_decryption_error(
     """
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_storage_alias
-    bucket_id = config.object_storages[inbox].bucket
-    storage = joint_fixture.federated_s3.storages[inbox].storage
-    await storage.create_bucket(bucket_id)
+    inbox = config.inbox_bucket_id
+    await joint_fixture.s3.storage.create_bucket(inbox)
 
     # Create an encrypted object but corrupt its content to cause decryption failure
     object_id = str(uuid4())
@@ -328,7 +316,7 @@ async def test_file_decryption_error(
     await upload_encrypted_object(
         bucket_id=inbox,
         object_id=object_id,
-        storage=storage,
+        storage=joint_fixture.s3.storage,
         encrypted_object=corrupted_object,
     )
 
@@ -343,10 +331,8 @@ async def test_file_decryption_error(
     )
 
     # Create the interrogation bucket
-    interrogation = config.interrogation_storage_alias
-    bucket_id = config.object_storages[interrogation].bucket
-    storage = joint_fixture.federated_s3.storages[interrogation].storage
-    await storage.create_bucket(bucket_id)
+    interrogation = config.interrogation_bucket_id
+    await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Mock the endpoint that returns new files to interrogate
     url_for_new_files = f"{config.central_api_url}/hubs/{config.data_hub}/uploads"
@@ -399,10 +385,8 @@ async def test_etag_doesnt_match_local_md5(
     """
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_storage_alias
-    bucket_id = config.object_storages[inbox].bucket
-    storage = joint_fixture.federated_s3.storages[inbox].storage
-    await storage.create_bucket(bucket_id)
+    inbox = config.inbox_bucket_id
+    await joint_fixture.s3.storage.create_bucket(inbox)
 
     # Add a file to the inbox
     object_id = str(uuid4())
@@ -412,7 +396,7 @@ async def test_etag_doesnt_match_local_md5(
     await upload_encrypted_object(
         bucket_id=inbox,
         object_id=object_id,
-        storage=storage,
+        storage=joint_fixture.s3.storage,
         encrypted_object=encrypted_object,
     )
     file_upload = FileUpload(
@@ -426,10 +410,8 @@ async def test_etag_doesnt_match_local_md5(
     )
 
     # Create the interrogation bucket
-    interrogation = config.interrogation_storage_alias
-    bucket_id = config.object_storages[interrogation].bucket
-    storage = joint_fixture.federated_s3.storages[interrogation].storage
-    await storage.create_bucket(bucket_id)
+    interrogation = config.interrogation_bucket_id
+    await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Mock the endpoint that returns new files to interrogate
     url_for_new_files = f"{config.central_api_url}/hubs/{config.data_hub}/uploads"
