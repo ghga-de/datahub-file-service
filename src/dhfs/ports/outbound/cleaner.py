@@ -23,19 +23,21 @@ __all__ = ["S3CleanerPort"]
 class S3CleanerPort(ABC):
     """A class that performs post-interrogation S3 bucket cleanup"""
 
-    class StorageAliasNotConfiguredError(RuntimeError):
-        """Raised when looking up an object storage configuration by alias fails."""
+    class S3CleanupError(RuntimeError):
+        """Raised when there's a problem deleting one or more objects from S3"""
 
-        def __init__(self, *, alias: str):
-            message = (
-                f"Could not find a storage configuration for alias {alias}.\n"
-                + "Check íf your multi node configuration contains a corresponding entry."
-            )
-            super().__init__(message)
+        def __init__(self, *, failed_deletion_count: int):
+            msg = f"Failed to delete {failed_deletion_count} file(s) during cleanup."
+            super().__init__(msg)
 
     @abstractmethod
     async def scan_and_clean(self):
         """Get a list of all objects in the 'interrogation' bucket, then query the
         GHGA Central API and delete the objects which that API says may be deleted.
+
+        Raises:
+        - S3CleanupError if some objects can't be deleted from the interrogation bucket.
+
+        Can also raise underlying errors from the S3 client or the CentralClient.
         """
         ...

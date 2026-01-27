@@ -44,6 +44,11 @@ class S3Cleaner(S3CleanerPort):
     async def scan_and_clean(self):
         """Get a list of all objects in the 'interrogation' bucket, then query the
         GHGA Central API and delete the objects which that API says may be deleted.
+
+        Raises:
+        - S3CleanupError if some objects can't be deleted from the interrogation bucket.
+
+        Can also raise underlying errors from the S3 client or the CentralClient.
         """
         log.info("Starting interrogation bucket cleanup scan.")
 
@@ -112,6 +117,4 @@ class S3Cleaner(S3CleanerPort):
 
         if failed_deletions:
             log.warning("Failed to delete the following files: %s", failed_deletions)
-            raise RuntimeError(
-                f"Failed to delete {len(failed_deletions)} file(s) during cleanup."
-            )
+            raise self.S3CleanupError(failed_deletion_count=len(failed_deletions))
