@@ -86,13 +86,11 @@ class FileUpload(BaseModel):
             )
 
         processed = self.offset
-        ranges = []
         while processed < self.encrypted_size:
             start = processed
             processed += adjusted_part_size
             end = min(processed, self.encrypted_size)
-            ranges.append(PartRange(start, end))
-        yield from ranges
+            yield PartRange(start, end)
 
 
 class InterrogationReport(BaseModel):
