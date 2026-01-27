@@ -17,7 +17,6 @@
 
 import base64
 import logging
-from contextlib import suppress
 from dataclasses import dataclass
 
 import httpx
@@ -163,6 +162,8 @@ class S3Client(S3ClientPort):
     ) -> bytes:
         """Download a single file part for the bytes in range `start` - `stop` (exclusive end, like Python slicing).
 
+        `bust_cache` will refresh the download url used for the object.
+
         Raises:
         - BucketNotFoundError if the inbox bucket doesn't exist.
         - ObjectNotFoundError if the file doesn't exist in the inbox.
@@ -197,7 +198,12 @@ class S3Client(S3ClientPort):
             f"Received a {status_code} error when trying to download file {object_id}"
             + f" from bucket {self._inbox_bucket_id}."
         )
-        log.error(error, extra={"response_detail": response.content.decode("ascii", errors="ignore")})
+        log.error(
+            error,
+            extra={
+                "response_detail": response.content.decode("ascii", errors="ignore")
+            },
+        )
         raise error
 
     async def init_interrogation_bucket_upload(self, *, object_id: str) -> str:

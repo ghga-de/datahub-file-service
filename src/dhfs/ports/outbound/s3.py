@@ -103,6 +103,8 @@ class S3ClientPort(ABC):
     ) -> bytes:
         """Download a single file part for the bytes in range `start` - `stop` (exclusive end, like Python slicing).
 
+        `bust_cache` will refresh the download url used for the object.
+
         Raises:
         - BucketNotFoundError if the inbox bucket doesn't exist.
         - ObjectNotFoundError if the file doesn't exist in the inbox.
