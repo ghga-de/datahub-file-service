@@ -131,12 +131,12 @@ class CentralClient(CentralClientPort):
 
         response = await self._httpx_client.get(url=url, headers=self._auth_headers())
 
-        if response.status_code == 200:
-            return self._response_to_file_upload_list(response)
-        else:
-            error = self.CentralAPIError(url=url, status_code=response.status_code)
+        if (status_code := response.status_code) != 200:
+            error = self.CentralAPIError(url=url, status_code=status_code)
             log.error(error)
             raise error
+
+        return self._response_to_file_upload_list(response)
 
     async def get_removable_files(self, *, file_ids: list[str]) -> list[str]:
         """Ask the GHGA Central API if the objects corresponding to the given file IDs
