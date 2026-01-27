@@ -92,8 +92,6 @@ class S3Cleaner(S3CleanerPort):
         for object_id in removable_objects:
             try:
                 await self._s3_client.remove_file(object_id=object_id)
-                deleted_count += 1
-                log.debug("Successfully deleted file: %s", object_id)
             except Exception as exc:
                 log.error(
                     "Failed to delete file %s: %s",
@@ -102,6 +100,9 @@ class S3Cleaner(S3CleanerPort):
                     exc_info=True,
                 )
                 failed_deletions.append(object_id)
+            else:
+                deleted_count += 1
+                log.debug("Successfully deleted file: %s", object_id)
 
         log.info(
             "Cleanup complete: %d file(s) deleted successfully, %d failed.",
