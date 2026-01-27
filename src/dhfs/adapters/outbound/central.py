@@ -116,7 +116,7 @@ class CentralClient(CentralClientPort):
         try:
             body = response.json()
             return list(map(models.FileUpload.model_validate, body))
-        except (JSONDecodeError, ValidationError) as err:
+        except (JSONDecodeError, ValidationError, TypeError) as err:
             error = self.ResponseFormatError(str(response.url))
             log.error(error, exc_info=True)
             raise error from err
