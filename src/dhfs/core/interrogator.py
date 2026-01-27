@@ -21,7 +21,6 @@ import os
 
 import crypt4gh.header
 import crypt4gh.lib
-from crypt4gh.exceptions import CryptoError
 from crypt4gh.keys import get_private_key
 from hexkit.utils import now_utc_ms_prec
 from nacl.bindings import (
@@ -92,6 +91,7 @@ class Interrogator(InterrogatorPort):
         - ObjectNotFoundError if the file doesn't exist in the inbox.
         - DownloadError if the download request fails.
         - CryptoError if the Crypt4GH envelope cannot be decrypted.
+        - ValueError if the secrets list returned by Crypt4GH is not 1 element long.
         """
         envelope = await self._s3_client.fetch_file_content_range(
             object_id=str(file_upload.id), start=0, stop=file_upload.offset
@@ -103,7 +103,7 @@ class Interrogator(InterrogatorPort):
 
         Raises:
         - CryptoError if the envelope cannot be decrypted with the data hub's private key.
-        - ValueError if the session keys list returned by Crypt4GH is not 1 element long.
+        - ValueError if the secrets list returned by Crypt4GH is not 1 element long.
         """
         envelope_stream = io.BytesIO(envelope)
         keys = [(0, self._data_hub_private_key.get_secret_value(), None)]
@@ -308,7 +308,7 @@ class Interrogator(InterrogatorPort):
         # Extract the file encryption secret and content offset
         try:
             old_secret = await self._fetch_original_secret(file_upload=file_upload)
-        except CryptoError as err:
+        except Exception as err:
             # Failed to decrypt envelope - interrogation failed - no cleanup needed
             envelope_error = self.FileEnvelopeDecryptionError(file_id=file_upload.id)
             log.error(envelope_error, exc_info=True)
