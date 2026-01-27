@@ -34,7 +34,7 @@ from dhfs.ports.outbound.interrogator import InterrogatorPort
 async def prepare_interrogator(*, config: Config) -> AsyncGenerator[InterrogatorPort]:
     """Produces a configured InterrogatorPort-compatible instance"""
     object_storage = S3ObjectStorage(config=config)
-    async with get_configured_httpx_client(config=config, cached=True) as httpx_client:
+    async with get_configured_httpx_client(config=config) as httpx_client:
         s3_client = S3Client(
             config=config, object_storage=object_storage, httpx_client=httpx_client
         )
@@ -50,7 +50,7 @@ async def prepare_interrogation_bucket_cleaner(
 ) -> AsyncGenerator[S3CleanerPort]:
     """Produces a configured S3CleanerPort-compatible instance"""
     object_storage = S3ObjectStorage(config=config)
-    async with get_configured_httpx_client(config=config, cached=False) as httpx_client:
+    async with get_configured_httpx_client(config=config) as httpx_client:
         s3_client = S3Client(
             config=config, object_storage=object_storage, httpx_client=httpx_client
         )

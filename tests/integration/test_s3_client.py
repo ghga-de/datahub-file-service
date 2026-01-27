@@ -37,9 +37,7 @@ from uuid import uuid4
 async def _s3_client(joint_fixture: JointFixture) -> AsyncGenerator[S3Client]:
     config = joint_fixture.config
     object_storage = S3ObjectStorage(config=config)
-    async with get_configured_httpx_client(
-        config=joint_fixture.config, cached=False
-    ) as client:
+    async with get_configured_httpx_client(config=joint_fixture.config) as client:
         s3_client = S3Client(
             config=config, object_storage=object_storage, httpx_client=client
         )

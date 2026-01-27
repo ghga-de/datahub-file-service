@@ -500,9 +500,9 @@ filelock==3.20.3 \
     --hash=sha256:18c57ee915c7ec61cff0ecf7f0f869936c7c30191bb0cf406f1341778d0834e1 \
     --hash=sha256:4b0dda527ee31078689fc205ec4f1c1bf7d56cf88b6dc9426c4f230e46c2dce1
     # via virtualenv
-ghga-service-commons==6.0.2 \
-    --hash=sha256:db95792faf8268f31c1e4bd79d82a28c2a32e47141e276e4b32692ae957cbd0d \
-    --hash=sha256:de26a9c65a79f3e6727b6baa751a6447056c5c3d4d82a8c7cb4a92a9657df3d7
+ghga-service-commons==6.1.0 \
+    --hash=sha256:5ae3af599be98db35f2d4dad365eae3a850443598ba8f8e2bc270b27b5b9ef75 \
+    --hash=sha256:999d455696a9fb3e62ec0b46b6c667ac89c3c7293b82e72c87fef0675235cc5d
     # via dhfs (pyproject.toml)
 h11==0.16.0 \
     --hash=sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1 \

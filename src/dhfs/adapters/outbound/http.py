@@ -22,8 +22,11 @@ import httpx
 from ghga_service_commons.transports import (
     CompositeCacheConfig,
     CompositeTransportFactory,
+    ratelimiting_retry_proxies,
 )
 from tenacity import RetryError
+
+from dhfs.constants import HTTPX_TIMEOUT
 
 __all__ = [
     "ConnectionFailedError",
@@ -36,19 +39,16 @@ __all__ = [
 
 @asynccontextmanager
 async def get_configured_httpx_client(
-    *, config: CompositeCacheConfig, cached: bool
+    *, config: CompositeCacheConfig
 ) -> AsyncGenerator[httpx.AsyncClient]:
-    """Produce an httpx AsyncClient with configured caching and rate limiting behavior"""
-    transport = (
-        CompositeTransportFactory.create_cached_ratelimiting_retry_transport(
-            config=config
-        )
-        if cached
-        else CompositeTransportFactory.create_ratelimiting_retry_transport(
-            config=config
-        )
+    """Produce an httpx AsyncClient with configured rate limiting behavior"""
+    transport = CompositeTransportFactory.create_ratelimiting_retry_transport(
+        config=config
     )
-    async with httpx.AsyncClient(transport=transport) as client:
+    proxies = ratelimiting_retry_proxies(config=config)
+    async with httpx.AsyncClient(
+        timeout=HTTPX_TIMEOUT, transport=transport, mounts=proxies
+    ) as client:
         yield client
 
 

@@ -79,7 +79,7 @@ class JWTClaimsModel(BaseModel):
 @pytest_asyncio.fixture(name="central_client")
 async def configured_central_client(config: Config) -> AsyncGenerator[CentralClient]:
     """Yields a configured CentralClient instance"""
-    async with get_configured_httpx_client(config=config, cached=False) as httpx_client:
+    async with get_configured_httpx_client(config=config) as httpx_client:
         yield CentralClient(config=config, httpx_client=httpx_client)
 
 
@@ -126,7 +126,7 @@ async def test_jwt_formation(config: Config, httpx_mock: HTTPXMock):
     httpx_mock.add_callback(callback=callback)
 
     # Test the different methods from the CentralClient
-    async with get_configured_httpx_client(config=config, cached=False) as httpx_client:
+    async with get_configured_httpx_client(config=config) as httpx_client:
         central_client = CentralClient(config=config, httpx_client=httpx_client)
 
         # Register the callback (see callback_return_value defined above for the response)
