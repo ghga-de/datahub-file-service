@@ -85,7 +85,7 @@ class CentralClient(CentralClientPort):
             claims=claims, key=self._signing_key, valid_seconds=AUTH_TOKEN_VALID_SECONDS
         )
 
-    def _auth_header(self) -> dict[str, str]:
+    def _auth_headers(self) -> dict[str, str]:
         """Create an authorization header with a bearer token containing a fresh JWT"""
         return {"Authorization": f"Bearer {self._make_jwt()}"}
 
@@ -125,7 +125,7 @@ class CentralClient(CentralClientPort):
         """Fetches a list of files that need to be interrogated and re-encrypted."""
         url = f"{self._base_url}/hubs/{self._data_hub}/uploads"
 
-        response = await self._httpx_client.get(url=url, headers=self._auth_header())
+        response = await self._httpx_client.get(url=url, headers=self._auth_headers())
 
         if response.status_code == 200:
             return self._response_to_file_upload_list(response)
@@ -142,7 +142,7 @@ class CentralClient(CentralClientPort):
         """
         url = f"{self._base_url}/hubs/{self._data_hub}/uploads/can_remove"
         response = await self._httpx_client.post(
-            url=url, json=file_ids, headers=self._auth_header()
+            url=url, json=file_ids, headers=self._auth_headers()
         )
 
         if (status_code := response.status_code) != 200:
@@ -166,7 +166,7 @@ class CentralClient(CentralClientPort):
             body["secret"] = encrypt(encoded_secret, key=self._central_public_key)
 
         response = await self._httpx_client.post(
-            url=url, headers=self._auth_header(), json=body
+            url=url, headers=self._auth_headers(), json=body
         )
 
         if (status_code := response.status_code) != 201:
