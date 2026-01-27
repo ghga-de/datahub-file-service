@@ -103,12 +103,15 @@ class Interrogator(InterrogatorPort):
 
         Raises:
         - CryptoError if the envelope cannot be decrypted with the data hub's private key.
+        - ValueError if the session keys list returned by Crypt4GH is not 1 element long.
         """
         envelope_stream = io.BytesIO(envelope)
         keys = [(0, self._data_hub_private_key.get_secret_value(), None)]
         session_keys, _ = crypt4gh.header.deconstruct(
             infile=envelope_stream, keys=keys, sender_pubkey=None
         )
+        if count := len(session_keys) != 1:
+            raise ValueError(f"Expected session key count to be 1, not {count}")
         return SecretBytes(session_keys[0])
 
     async def _fetch_and_decrypt_part(
@@ -132,7 +135,7 @@ class Interrogator(InterrogatorPort):
 
         May raise exceptions from the underlying decrypt_algo if decryption fails.
         """
-        buffer = b""
+        buffer = bytearray()
         part_size = len(encrypted_part)
         position = 0
 
@@ -147,7 +150,7 @@ class Interrogator(InterrogatorPort):
                 secret.get_secret_value(),
             )
             position += crypt4gh.lib.CIPHER_SEGMENT_SIZE
-        return buffer
+        return bytes(buffer)
 
     def _reencrypt_part(
         self, *, decrypted_part: bytes, new_secret: SecretBytes
@@ -156,7 +159,7 @@ class Interrogator(InterrogatorPort):
 
         May raise exceptions from the underlying encrypt_algo if re-encryption fails.
         """
-        buffer = b""
+        buffer = bytearray()
         part_size = len(decrypted_part)
         position = 0
 
@@ -168,7 +171,7 @@ class Interrogator(InterrogatorPort):
             buffer += nonce + encrypted
             position += crypt4gh.lib.SEGMENT_SIZE
 
-        return buffer
+        return bytes(buffer)
 
     async def _process_file_parts(  # noqa: C901
         self,
@@ -196,7 +199,7 @@ class Interrogator(InterrogatorPort):
         # Establish Checksums object to track decrypted and encrypted content checksums
         checksums = Checksums()
         object_id = str(file_upload.id)
-        upload_buffer = b""
+        upload_buffer = bytearray()
         uploaded_part_number = 1
 
         # Download, re-encrypt, and upload object part-by-part
@@ -251,7 +254,7 @@ class Interrogator(InterrogatorPort):
             upload_buffer += reencrypted_part
             if len(upload_buffer) >= file_upload.part_size:
                 # Calculate part's encrypted md5 and sha256
-                part_to_upload = upload_buffer[: file_upload.part_size]
+                part_to_upload = bytes(upload_buffer[: file_upload.part_size])
                 checksums.update_encrypted(part_to_upload)
 
                 # Upload the re-encrypted part
@@ -274,14 +277,15 @@ class Interrogator(InterrogatorPort):
 
         # Upload remaining file content if needed
         if upload_buffer:
-            checksums.update_encrypted(upload_buffer)
+            remaining_bytes = bytes(upload_buffer)
+            checksums.update_encrypted(remaining_bytes)
             try:
                 await self._s3_client.upload_file_part(
                     upload_id=upload_id,
                     object_id=object_id,
                     part_no=uploaded_part_number,
                     part_md5=checksums.encrypted_md5[-1],
-                    part=upload_buffer,
+                    part=remaining_bytes,
                 )
             except S3ClientPort.ConclusiveError as error:
                 raise self.InterrogationError() from error
