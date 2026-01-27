@@ -97,13 +97,15 @@ class CentralClient(CentralClientPort):
         """
         try:
             body = response.json()
-            if not isinstance(body, list):
-                raise TypeError("Response did not contain a list")
-            return body
+            if not isinstance(body, list) and all(
+                isinstance(value, str) for value in body
+            ):
+                raise TypeError("Response did not contain a list of strings")
         except (JSONDecodeError, TypeError) as err:
             error = self.ResponseFormatError(str(response.url))
             log.error(error, exc_info=True)
             raise error from err
+        return body
 
     def _response_to_file_upload_list(
         self, response: httpx.Response
