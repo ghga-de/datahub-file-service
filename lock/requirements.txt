@@ -18,6 +18,12 @@ anysqlite==0.0.5 \
     # via
     #   -c lock/requirements-dev.txt
     #   hishel
+async-lru==2.1.0 \
+    --hash=sha256:9eeb2fecd3fe42cc8a787fc32ead53a3a7158cc43d039c3c55ab3e4e5b2a80ed \
+    --hash=sha256:fa12dcf99a42ac1280bc16c634bbaf06883809790f6304d85cdab3f666f33a7e
+    # via
+    #   -c lock/requirements-dev.txt
+    #   dhfs (pyproject.toml)
 bcrypt==5.0.0 \
     --hash=sha256:046ad6db88edb3c5ece4369af997938fb1c19d6a699b9c1b27b0db432faae4c4 \
     --hash=sha256:0c418ca99fd47e9c59a301744d63328f17798b5947b0f791e9af3c1c499c2d0a \

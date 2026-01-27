@@ -20,6 +20,7 @@ import logging
 from dataclasses import dataclass
 
 import httpx
+from async_lru import alru_cache
 from ghga_service_commons.utils.multinode_storage import S3ObjectStorages
 from hexkit.protocols.objstorage import ObjectStorageProtocol
 from pydantic import UUID4
@@ -27,6 +28,11 @@ from tenacity import RetryError
 
 from dhfs.adapters.outbound.http import check_for_request_errors
 from dhfs.config import Config
+from dhfs.constants import (
+    DOWNLOAD_URL_CACHE_TIME,
+    DOWNLOAD_URL_LIFESPAN,
+    URL_CACHE_SIZE,
+)
 from dhfs.ports.outbound.s3 import S3ClientPort
 
 log = logging.getLogger(__name__)
@@ -84,8 +90,6 @@ class S3Client(S3ClientPort):
         self._interrogation_bucket_id = interrogation_storage.bucket_id
         self._interrogation_storage = interrogation_storage.object_storage
         self._httpx_client = httpx_client
-        # Store download URLs for objects, removed when completed
-        self._download_url_cache: dict[str, str] = {}
 
     async def get_is_file_in_inbox(self, *, file_id: UUID4) -> bool:
         """Return a bool indicating whether the file exists in the inbox"""
@@ -121,6 +125,7 @@ class S3Client(S3ClientPort):
             )
             raise bucket_error from err
 
+    @alru_cache(maxsize=URL_CACHE_SIZE, typed=True, ttl=DOWNLOAD_URL_CACHE_TIME)
     async def _get_download_url(self, *, object_id: str) -> str:
         """Generate a download URL for an object in the inbox bucket.
 
@@ -128,7 +133,9 @@ class S3Client(S3ClientPort):
         """
         try:
             download_url = await self._inbox_storage.get_object_download_url(
-                bucket_id=self._inbox_bucket_id, object_id=object_id
+                bucket_id=self._inbox_bucket_id,
+                object_id=object_id,
+                expires_after=DOWNLOAD_URL_LIFESPAN,
             )
             return download_url
         except ObjectStorageProtocol.BucketNotFoundError as err:
@@ -169,12 +176,10 @@ class S3Client(S3ClientPort):
         - ObjectNotFoundError if the file doesn't exist in the inbox.
         - DownloadError if the download request fails or returns an unexpected status code.
         """
-        if bust_cache or object_id not in self._download_url_cache:
-            self._download_url_cache[object_id] = await self._get_download_url(
-                object_id=object_id
-            )
+        if bust_cache:
+            self._get_download_url.cache_invalidate(object_id=object_id)
 
-        download_url = self._download_url_cache[object_id]
+        download_url = await self._get_download_url(object_id=object_id)
 
         headers = httpx.Headers(
             {
@@ -188,7 +193,7 @@ class S3Client(S3ClientPort):
         if status_code in (200, 206):
             return response.content
 
-        if status_code == 403:
+        if status_code == 403 and not bust_cache:
             log.info(f"Download URL for {object_id} is stale - generating a fresh one")
             return await self.fetch_file_content_range(
                 object_id=object_id, start=start, stop=stop, bust_cache=True
@@ -375,8 +380,6 @@ class S3Client(S3ClientPort):
                 object_id=object_id,
                 anticipated_part_quantity=part_count,
             )
-            # Remove download url from cache
-            self._download_url_cache.pop(object_id, None)
 
             # We need to compare S3 ETag with locally calculated MD5, so fetch the etag
             etag = await self._interrogation_storage.get_object_etag(
