@@ -177,10 +177,29 @@ class S3Client(S3ClientPort):
     async def init_interrogation_bucket_upload(self, *, object_id: str) -> str:
         """Start a multipart upload to the interrogation bucket.
 
+        If the object already exists in the interrogation bucket for any reason, it will
+        be deleted and the interrogation process proceeds as if the object had never
+        been there.
+
         Raises:
         - UploadInitError if an ongoing upload already exists for the object or if an unexpected error occurs.
         - BucketNotFoundError if the interrogation bucket doesn't exist.
         """
+        object_exists = await self._storage.does_object_exist(
+            bucket_id=self._interrogation_bucket_id, object_id=object_id
+        )
+
+        if object_exists:
+            # Delete and start the process over again
+            log.warning(
+                "File %s already exists in interrogation bucket -- deleting"
+                + " before beginning interrogation.",
+                object_id,
+            )
+            await self._storage.delete_object(
+                bucket_id=self._interrogation_bucket_id, object_id=object_id
+            )
+
         try:
             upload_id = await self._storage.init_multipart_upload(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
@@ -196,13 +215,6 @@ class S3Client(S3ClientPort):
             )
             log.error(upload_exists_error, exc_info=True)
             raise upload_exists_error from err
-        except ObjectStorageProtocol.ObjectAlreadyExistsError as err:
-            object_exists_error = self.UploadInitError(
-                f"Cannot create a multipart upload for file {object_id} because"
-                + " the object already exists."
-            )
-            log.error(object_exists_error, exc_info=True)
-            raise object_exists_error from err
         except ObjectStorageProtocol.BucketNotFoundError as err:
             # This is logged as critical because the bucket should definitely exist
             bucket_error = self.BucketNotFoundError(

@@ -126,7 +126,7 @@ async def test_fetch_file_content_range(
 
 
 async def test_init_interrogation_bucket_upload(
-    joint_fixture: JointFixture, s3_client: S3Client
+    joint_fixture: JointFixture, s3_client: S3Client, caplog
 ):
     """Test the functionality of `S3Client.init_interrogation_bucket_upload()`"""
     object_id = str(uuid4())
@@ -137,9 +137,32 @@ async def test_init_interrogation_bucket_upload(
     interrogation = joint_fixture.config.interrogation_bucket_id
     await joint_fixture.s3.storage.create_bucket(interrogation)
 
-    # Now successfully init the upload
-    upload_id = await s3_client.init_interrogation_bucket_upload(object_id=object_id)
-    assert isinstance(upload_id, str)
+    # Upload an existing object with the same object_id to test the deletion path
+    await upload_dummy_data(
+        bucket_id=interrogation,
+        object_id=object_id,
+        storage=joint_fixture.s3.storage,
+    )
+
+    # Verify the object exists before calling init
+    assert await joint_fixture.s3.storage.does_object_exist(
+        bucket_id=interrogation, object_id=object_id
+    )
+
+    # Now init the upload - should delete existing object and log a warning
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        upload_id = await s3_client.init_interrogation_bucket_upload(
+            object_id=object_id
+        )
+        assert isinstance(upload_id, str)
+
+        # Check that the warning log was emitted
+        assert any(
+            "already exists in interrogation bucket -- deleting" in record.message
+            and object_id in record.message
+            for record in caplog.records
+        )
 
     # Repeat the operation to get an error
     with pytest.raises(S3Client.UploadInitError):

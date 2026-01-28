@@ -116,6 +116,10 @@ class S3ClientPort(ABC):
     async def init_interrogation_bucket_upload(self, *, object_id: str) -> str:
         """Start a multipart upload to the interrogation bucket.
 
+        If the object already exists in the interrogation bucket for any reason, it will
+        be deleted and the interrogation process proceeds as if the object had never
+        been there.
+
         Raises:
         - UploadInitError if an ongoing upload already exists for the object or if an unexpected error occurs.
         - BucketNotFoundError if the interrogation bucket doesn't exist.
