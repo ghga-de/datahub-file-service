@@ -23,7 +23,7 @@ from math import ceil
 
 import crypt4gh.lib
 from ghga_service_commons.utils.utc_dates import UTCDatetime
-from pydantic import UUID4, BaseModel, SecretBytes, computed_field
+from pydantic import UUID4, BaseModel, Field, SecretBytes, computed_field
 
 from dhfs.constants import AUTH_TAG_LENGTH, NONCE_LENGTH
 
@@ -124,7 +124,23 @@ class InterrogationReport(BaseModel):
     storage_alias: str
     interrogated_at: UTCDatetime
     passed: bool
-    secret: SecretBytes | None = None
-    encrypted_parts_md5: list[str] | None = None
-    encrypted_parts_sha256: list[str] | None = None
-    reason: str | None = None
+    secret: SecretBytes | None = Field(
+        None, description="The base64-encoded encrypted file encryption secret."
+    )
+    encrypted_parts_md5: list[str] | None = Field(
+        None,
+        description=(
+            "A list of the MD5 checksums converted from digest bytes to hex"
+            + " string representation"
+        ),
+    )
+    encrypted_parts_sha256: list[str] | None = Field(
+        None,
+        description=(
+            "A list of the SHA256 checksums converted from digest bytes to hex"
+            + " string representation"
+        ),
+    )
+    reason: str | None = Field(
+        None, description="The reason the file interrogation failed."
+    )
