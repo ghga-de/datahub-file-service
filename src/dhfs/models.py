@@ -45,7 +45,6 @@ class FileUpload(BaseModel):
     """Represents a file that needs to be interrogated and re-encrypted"""
 
     id: UUID4
-    data_hub: str
     storage_alias: str
     decrypted_sha256: str
     decrypted_size: int

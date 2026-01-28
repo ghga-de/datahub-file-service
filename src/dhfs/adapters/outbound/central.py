@@ -47,7 +47,7 @@ class CentralClientConfig(BaseSettings):
         description="The Data Hub's private JWK for signing JWT auth tokens",
         examples=['{"crv": "P-256", "kty": "EC", "x": "...", "y": "...", "d": "..."}'],
     )
-    data_hub: str = Field(
+    storage_alias: str = Field(
         default=...,
         description=(
             "An alias identifying the Data Hub at which this instance of DHFS is"
@@ -68,7 +68,7 @@ class CentralClient(CentralClientPort):
     ) -> None:
         """Initialize the CentralClient instance"""
         self._httpx_client = httpx_client
-        self._data_hub = config.data_hub
+        self._storage_alias = config.storage_alias
         self._central_public_key = config.central_api_crypt4gh_public_key
         self._base_url = str(config.central_api_url).rstrip("/")
         self._signing_key = JWK.from_json(
@@ -80,7 +80,11 @@ class CentralClient(CentralClientPort):
             raise valuey_error
 
     def _make_jwt(self) -> str:
-        claims: dict[str, str] = {"iss": JWT_ISS, "aud": JWT_AUD, "sub": self._data_hub}
+        claims: dict[str, str] = {
+            "iss": JWT_ISS,
+            "aud": JWT_AUD,
+            "sub": self._storage_alias,
+        }
         return sign_and_serialize_token(
             claims=claims, key=self._signing_key, valid_seconds=AUTH_TOKEN_VALID_SECONDS
         )
@@ -129,7 +133,7 @@ class CentralClient(CentralClientPort):
         Raises:
         - CentralAPIError if the request to the central API fails.
         """
-        url = f"{self._base_url}/hubs/{self._data_hub}/uploads"
+        url = f"{self._base_url}/storages/{self._storage_alias}/uploads"
 
         response = await self._httpx_client.get(url=url, headers=self._auth_headers())
 
@@ -149,7 +153,7 @@ class CentralClient(CentralClientPort):
         Raises:
         - CentralAPIError if the request to the central API fails.
         """
-        url = f"{self._base_url}/hubs/{self._data_hub}/uploads/can_remove"
+        url = f"{self._base_url}/storages/{self._storage_alias}/uploads/can_remove"
         response = await self._httpx_client.post(
             url=url, json=file_ids, headers=self._auth_headers()
         )
@@ -170,7 +174,7 @@ class CentralClient(CentralClientPort):
         - CentralAPIError if the request to the central API fails.
         """
         body = report.model_dump(mode="json")
-        url = f"{self._base_url}/hubs/{self._data_hub}/interrogation-reports"
+        url = f"{self._base_url}/storages/{self._storage_alias}/interrogation-reports"
 
         # Encrypt secret (core class doesn't know central api public key)
         if report.secret:

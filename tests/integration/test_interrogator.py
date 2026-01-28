@@ -73,8 +73,7 @@ async def test_interrogate_new_files(
             FileUpload(
                 id=UUID(object_id),
                 decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
-                data_hub=config.data_hub,
-                storage_alias=inbox,
+                storage_alias=config.storage_alias,
                 decrypted_size=encrypted_object.unencrypted_size,
                 encrypted_size=encrypted_object.encrypted_size,
                 part_size=PART_SIZE,
@@ -89,7 +88,9 @@ async def test_interrogate_new_files(
     serialized_file_uploads = [x.model_dump(mode="json") for x in file_uploads]
 
     # Add callback for when we request the list of new files that need interrogation
-    url_for_new_files = f"{config.central_api_url}/hubs/{config.data_hub}/uploads"
+    url_for_new_files = (
+        f"{config.central_api_url}/storages/{config.storage_alias}/uploads"
+    )
     httpx_mock.add_response(
         url=url_for_new_files, status_code=200, json=serialized_file_uploads
     )
@@ -104,9 +105,7 @@ async def test_interrogate_new_files(
         return httpx.Response(status_code=201, json={})
 
     # Add callback for when we upload the file interrogation report
-    url_for_reports = (
-        f"{config.central_api_url}/hubs/{config.data_hub}/interrogation-reports"
-    )
+    url_for_reports = f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports"
     httpx_mock.add_callback(capture_report, url=url_for_reports)
 
     # Process all files
@@ -156,9 +155,7 @@ async def test_report_failure(joint_fixture: JointFixture, httpx_mock: HTTPXMock
         return httpx.Response(status_code=201, json={})
 
     # Mock the interrogation report submission endpoint with the callback
-    url_for_reports = (
-        f"{config.central_api_url}/hubs/{config.data_hub}/interrogation-reports"
-    )
+    url_for_reports = f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports"
     httpx_mock.add_callback(capture_payload, url=url_for_reports)
 
     # Call report_failure
@@ -208,8 +205,7 @@ async def test_api_down_during_report_submission(
     file_upload = FileUpload(
         id=UUID(object_id),
         decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
-        data_hub=config.data_hub,
-        storage_alias=inbox,
+        storage_alias=config.storage_alias,
         decrypted_size=encrypted_object.unencrypted_size,
         encrypted_size=encrypted_object.encrypted_size,
         part_size=PART_SIZE,
@@ -220,7 +216,9 @@ async def test_api_down_during_report_submission(
     await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Mock the endpoint that returns new files to interrogate
-    url_for_new_files = f"{config.central_api_url}/hubs/{config.data_hub}/uploads"
+    url_for_new_files = (
+        f"{config.central_api_url}/storages/{config.storage_alias}/uploads"
+    )
     httpx_mock.add_response(
         url=url_for_new_files,
         status_code=200,
@@ -228,9 +226,7 @@ async def test_api_down_during_report_submission(
     )
 
     # Mock the report submission endpoint to fail (simulating API down)
-    url_for_reports = (
-        f"{config.central_api_url}/hubs/{config.data_hub}/interrogation-reports"
-    )
+    url_for_reports = f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports"
     httpx_mock.add_response(url=url_for_reports, status_code=500)
 
     # Attempt to process files - this should fail but handle cleanup
@@ -258,15 +254,16 @@ async def test_file_not_in_inbox(joint_fixture: JointFixture, httpx_mock: HTTPXM
     file_upload = FileUpload(
         id=uuid4(),
         decrypted_sha256="abc123",
-        data_hub=config.data_hub,
-        storage_alias=inbox,
+        storage_alias=config.storage_alias,
         decrypted_size=1024,
         encrypted_size=1228,
         part_size=PART_SIZE,
     )
 
     # Mock the endpoint that returns new files to interrogate
-    url_for_new_files = f"{config.central_api_url}/hubs/{config.data_hub}/uploads"
+    url_for_new_files = (
+        f"{config.central_api_url}/storages/{config.storage_alias}/uploads"
+    )
     httpx_mock.add_response(
         url=url_for_new_files,
         status_code=200,
@@ -323,8 +320,7 @@ async def test_file_decryption_error(
     file_upload = FileUpload(
         id=UUID(object_id),
         decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
-        data_hub=config.data_hub,
-        storage_alias=inbox,
+        storage_alias=config.storage_alias,
         decrypted_size=encrypted_object.unencrypted_size,
         encrypted_size=encrypted_object.encrypted_size,
         part_size=PART_SIZE,
@@ -335,7 +331,9 @@ async def test_file_decryption_error(
     await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Mock the endpoint that returns new files to interrogate
-    url_for_new_files = f"{config.central_api_url}/hubs/{config.data_hub}/uploads"
+    url_for_new_files = (
+        f"{config.central_api_url}/storages/{config.storage_alias}/uploads"
+    )
     httpx_mock.add_response(
         url=url_for_new_files,
         status_code=200,
@@ -352,9 +350,7 @@ async def test_file_decryption_error(
         return httpx.Response(status_code=201, json={})
 
     # Mock the report submission endpoint
-    url_for_reports = (
-        f"{config.central_api_url}/hubs/{config.data_hub}/interrogation-reports"
-    )
+    url_for_reports = f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports"
     httpx_mock.add_callback(capture_report, url=url_for_reports)
 
     # Process files - should handle the decryption error gracefully
@@ -402,8 +398,7 @@ async def test_etag_doesnt_match_local_md5(
     file_upload = FileUpload(
         id=UUID(object_id),
         decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
-        data_hub=config.data_hub,
-        storage_alias=inbox,
+        storage_alias=config.storage_alias,
         decrypted_size=encrypted_object.unencrypted_size,
         encrypted_size=encrypted_object.encrypted_size,
         part_size=PART_SIZE,
@@ -414,7 +409,9 @@ async def test_etag_doesnt_match_local_md5(
     await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Mock the endpoint that returns new files to interrogate
-    url_for_new_files = f"{config.central_api_url}/hubs/{config.data_hub}/uploads"
+    url_for_new_files = (
+        f"{config.central_api_url}/storages/{config.storage_alias}/uploads"
+    )
     httpx_mock.add_response(
         url=url_for_new_files,
         status_code=200,
@@ -431,9 +428,7 @@ async def test_etag_doesnt_match_local_md5(
         return httpx.Response(status_code=201, json={})
 
     # Mock the report submission endpoint
-    url_for_reports = (
-        f"{config.central_api_url}/hubs/{config.data_hub}/interrogation-reports"
-    )
+    url_for_reports = f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports"
     httpx_mock.add_callback(capture_report, url=url_for_reports)
 
     # Monkeypatch the S3Client's complete_upload method

@@ -118,7 +118,7 @@ async def test_jwt_formation(config: Config, httpx_mock: HTTPXMock):
         token = token.removeprefix("Bearer ")
         context = await auth_context_provider.get_context(token)
         assert context
-        assert context.sub == config.data_hub
+        assert context.sub == config.storage_alias
         assert context.iat - now_utc_ms_prec() < timedelta(seconds=3)
         return callback_return_value
 
@@ -136,7 +136,7 @@ async def test_jwt_formation(config: Config, httpx_mock: HTTPXMock):
 
         # Update the return value for this other call
         callback_return_value = httpx.Response(201)
-        report = make_interrogation_success_report(config.data_hub)
+        report = make_interrogation_success_report(config.storage_alias)
         await central_client.submit_interrogation_report(report=report)
 
 

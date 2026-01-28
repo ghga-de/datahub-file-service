@@ -136,14 +136,14 @@
       "type": "string",
       "writeOnly": true
     },
-    "data_hub": {
+    "storage_alias": {
       "description": "An alias identifying the Data Hub at which this instance of DHFS is running. This value should be set in coordination with GHGA Central.",
       "examples": [
         "HD",
         "TUE",
         "B"
       ],
-      "title": "Data Hub",
+      "title": "Storage Alias",
       "type": "string"
     },
     "s3_endpoint_url": {
@@ -276,7 +276,7 @@
     "central_api_crypt4gh_public_key",
     "central_api_url",
     "data_hub_signing_key",
-    "data_hub",
+    "storage_alias",
     "s3_endpoint_url",
     "s3_access_key_id",
     "s3_secret_access_key",

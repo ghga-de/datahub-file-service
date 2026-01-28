@@ -30,8 +30,7 @@ def test_file_upload_offset():
     encrypted_object = get_encrypted_object(part_size=part_size)
     f = FileUpload(
         id=uuid4(),
-        data_hub="TUE",
-        storage_alias="inbox",
+        storage_alias="TUE01",
         decrypted_sha256="test",
         decrypted_size=encrypted_object.unencrypted_size,
         encrypted_size=encrypted_object.encrypted_size,
@@ -50,8 +49,7 @@ def test_calc_part_ranges():
 
     f = FileUpload(
         id=uuid4(),
-        data_hub="TUE",
-        storage_alias="inbox",
+        storage_alias="TUE01",
         decrypted_sha256="test",
         decrypted_size=encrypted_object.unencrypted_size,
         encrypted_size=encrypted_object.encrypted_size,
@@ -104,8 +102,7 @@ def test_calc_part_ranges_single_part():
 
     f = FileUpload(
         id=uuid4(),
-        data_hub="TUE",
-        storage_alias="inbox",
+        storage_alias="TUE01",
         decrypted_sha256="test",
         decrypted_size=encrypted_object.unencrypted_size,
         encrypted_size=encrypted_object.encrypted_size,
@@ -136,8 +133,7 @@ def test_adjusted_part_size_small_file():
 
     f = FileUpload(
         id=uuid4(),
-        data_hub="TUE",
-        storage_alias="inbox",
+        storage_alias="TUE01",
         decrypted_sha256="test",
         decrypted_size=decrypted_size,
         encrypted_size=encrypted_size,
@@ -168,8 +164,7 @@ def test_adjusted_part_size_big_file():
 
     f_large = FileUpload(
         id=uuid4(),
-        data_hub="TUE",
-        storage_alias="inbox",
+        storage_alias="TUE01",
         decrypted_sha256="test",
         decrypted_size=decrypted_size,
         encrypted_size=encrypted_size,

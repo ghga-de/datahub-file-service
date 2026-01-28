@@ -82,7 +82,7 @@ The service requires the following configuration parameters:
   "{\"crv\": \"P-256\", \"kty\": \"EC\", \"x\": \"...\", \"y\": \"...\", \"d\": \"...\"}"
   ```
 
-- <a id="properties/data_hub"></a>**`data_hub`** *(string, required)*: An alias identifying the Data Hub at which this instance of DHFS is running. This value should be set in coordination with GHGA Central.
+- <a id="properties/storage_alias"></a>**`storage_alias`** *(string, required)*: An alias identifying the Data Hub at which this instance of DHFS is running. This value should be set in coordination with GHGA Central.
 
   Examples:
   ```json

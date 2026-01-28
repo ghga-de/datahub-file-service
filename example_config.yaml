@@ -19,7 +19,6 @@ client_retry_status_codes:
 - 503
 - 504
 crypt4gh_private_key_passphrase: null
-data_hub: TESTHUB
 data_hub_crypt4gh_private_key_path: key.sec
 data_hub_signing_key: '**********'
 inbox_bucket_id: inbox
@@ -35,3 +34,4 @@ s3_secret_access_key: '**********'
 s3_session_token: null
 service_instance_id: '1'
 service_name: dhfs
+storage_alias: TESTHUB
