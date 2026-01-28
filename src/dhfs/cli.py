@@ -25,12 +25,12 @@ cli = typer.Typer()
 
 
 @cli.command(name="interrogate")
-def sync_run_api():
+def sync_interrogate(forever: bool = True):
     """Run the file interrogation and re-encryption process."""
-    asyncio.run(run_interrogator())
+    asyncio.run(run_interrogator(forever=forever))
 
 
 @cli.command(name="cleanup")
-def sync_run_consume_events():
+def sync_run_cleanup():
     """Run the S3 'interrogation' bucket cleanup routine."""
     asyncio.run(perform_cleanup())

@@ -258,6 +258,12 @@
       "title": "Log Traceback",
       "type": "boolean"
     },
+    "min_run_interval": {
+      "default": 60,
+      "description": "The minimum number of seconds to wait before asking the CentralAPI about new files for interrogation.",
+      "title": "Min Run Interval",
+      "type": "integer"
+    },
     "interrogation_bucket_id": {
       "default": "interrogation",
       "description": "The name for the S3 'interrogation' bucket",

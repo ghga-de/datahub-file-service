@@ -56,6 +56,14 @@ class Config(
 ):
     """Config parameters and their defaults."""
 
+    min_run_interval: int = Field(
+        default=60,
+        description=(
+            "The minimum number of seconds to wait before asking the CentralAPI"
+            + " about new files for interrogation."
+        ),
+    )
+
     interrogation_bucket_id: str = Field(
         default="interrogation",
         description="The name for the S3 'interrogation' bucket",
