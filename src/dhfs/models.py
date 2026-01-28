@@ -125,22 +125,22 @@ class InterrogationReport(BaseModel):
     interrogated_at: UTCDatetime
     passed: bool
     secret: SecretBytes | None = Field(
-        None, description="The base64-encoded encrypted file encryption secret."
+        default=None, description="The base64-encoded encrypted file encryption secret."
     )
     encrypted_parts_md5: list[str] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of the MD5 checksums converted from digest bytes to hex"
             + " string representation"
         ),
     )
     encrypted_parts_sha256: list[str] | None = Field(
-        None,
+        default=None,
         description=(
             "A list of the SHA256 checksums converted from digest bytes to hex"
             + " string representation"
         ),
     )
     reason: str | None = Field(
-        None, description="The reason the file interrogation failed."
+        default=None, description="The reason the file interrogation failed."
     )
