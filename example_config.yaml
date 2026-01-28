@@ -25,7 +25,7 @@ interrogation_bucket_id: interrogation
 log_format: null
 log_level: INFO
 log_traceback: true
-min_run_interval: 60
+min_run_interval_seconds: 60
 per_request_jitter: 0.0
 retry_after_applicable_for_num_requests: 1
 s3_access_key_id: test

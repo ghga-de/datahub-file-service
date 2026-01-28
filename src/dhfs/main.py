@@ -33,7 +33,9 @@ async def run_interrogator(forever: bool = True):
                 start = now_utc_ms_prec()
                 await interrogator.interrogate_new_files()
                 stop = now_utc_ms_prec()
-                if (timediff := (stop - start).seconds) < config.min_run_interval:
+                if (
+                    timediff := (stop - start).seconds
+                ) < config.min_run_interval_seconds:
                     await sleep(timediff)
         else:
             await interrogator.interrogate_new_files()

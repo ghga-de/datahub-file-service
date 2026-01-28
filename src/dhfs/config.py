@@ -56,7 +56,7 @@ class Config(
 ):
     """Config parameters and their defaults."""
 
-    min_run_interval: int = Field(
+    min_run_interval_seconds: int = Field(
         default=60,
         description=(
             "The minimum number of seconds to wait before asking the CentralAPI"
