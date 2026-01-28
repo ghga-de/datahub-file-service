@@ -258,12 +258,6 @@
       "title": "Log Traceback",
       "type": "boolean"
     },
-    "inbox_bucket_id": {
-      "default": "inbox",
-      "description": "The name for the S3 'inbox' bucket",
-      "title": "Inbox Bucket Id",
-      "type": "string"
-    },
     "interrogation_bucket_id": {
       "default": "interrogation",
       "description": "The name for the S3 'interrogation' bucket",

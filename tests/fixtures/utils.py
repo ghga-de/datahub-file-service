@@ -18,6 +18,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 import crypt4gh.header
 import crypt4gh.lib
@@ -34,6 +35,7 @@ from pydantic import SecretBytes, SecretStr
 
 from dhfs.constants import ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH
 from dhfs.core.checksums import Checksums
+from dhfs.models import FileUpload
 
 BASE_DIR = Path(__file__).parent.resolve()
 DHFS_CRYPT4GH_PRIVATE_KEY_PATH = BASE_DIR / "keys/dhfs_key.sec"
@@ -43,6 +45,7 @@ DHFS_SIGNING_KEY = DHFS_JWK.export_private()
 CENTRAL_CRYPT4GH_KEYPAIR = generate_key_pair()
 CENTRAL_CRYPT4GH_PUBLIC_KEY = encode_key(CENTRAL_CRYPT4GH_KEYPAIR.public)
 CENTRAL_CRYPT4GH_PRIVATE_KEY = encode_key(CENTRAL_CRYPT4GH_KEYPAIR.private)
+INBOX = "inbox1"
 
 
 @dataclass
@@ -161,4 +164,19 @@ async def upload_encrypted_object(
         httpx.put(url, content=content)
     await storage.complete_multipart_upload(
         upload_id=upload_id, bucket_id=bucket_id, object_id=object_id
+    )
+
+
+def make_file_upload(
+    decrypted_size: int, encrypted_size: int, part_size: int = 5 * 1024**2
+) -> FileUpload:
+    """Make a FileUpload instance using the provided attributes."""
+    return FileUpload(
+        id=uuid4(),
+        storage_alias="TUE01",
+        bucket_id=INBOX,
+        decrypted_sha256="test",
+        decrypted_size=decrypted_size,
+        encrypted_size=encrypted_size,
+        part_size=part_size,
     )

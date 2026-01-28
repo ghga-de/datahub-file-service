@@ -106,6 +106,7 @@ class InterrogatorPort(ABC):
         self,
         *,
         file_id: UUID4,
+        bucket_id: str,
         secret: SecretBytes,
         encrypted_parts_md5: list[bytes],
         encrypted_parts_sha256: list[bytes],

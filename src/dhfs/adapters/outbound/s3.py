@@ -50,14 +50,13 @@ class S3Client(S3ClientPort):
     ) -> None:
         self._config = config
         self._storage = object_storage
-        self._inbox_bucket_id = config.inbox_bucket_id
         self._interrogation_bucket_id = config.interrogation_bucket_id
         self._httpx_client = httpx_client
 
-    async def get_is_file_in_inbox(self, *, file_id: UUID4) -> bool:
+    async def get_is_file_in_inbox(self, *, file_id: UUID4, bucket_id: str) -> bool:
         """Return a bool indicating whether the file exists in the inbox"""
         return await self._storage.does_object_exist(
-            bucket_id=self._inbox_bucket_id, object_id=str(file_id)
+            bucket_id=bucket_id, object_id=str(file_id)
         )
 
     async def list_files_in_interrogation_bucket(self) -> list[str]:
@@ -89,14 +88,14 @@ class S3Client(S3ClientPort):
             raise bucket_error from err
 
     @alru_cache(maxsize=URL_CACHE_SIZE, typed=True, ttl=DOWNLOAD_URL_CACHE_TIME)
-    async def _get_download_url(self, *, object_id: str) -> str:
+    async def _get_download_url(self, *, bucket_id: str, object_id: str) -> str:
         """Generate a download URL for an object in the inbox bucket.
 
         Relies on cache to prevent excessive outbound calls.
         """
         try:
             download_url = await self._storage.get_object_download_url(
-                bucket_id=self._inbox_bucket_id,
+                bucket_id=bucket_id,
                 object_id=object_id,
                 expires_after=DOWNLOAD_URL_LIFESPAN,
             )
@@ -104,7 +103,7 @@ class S3Client(S3ClientPort):
         except ObjectStorageProtocol.BucketNotFoundError as err:
             bucket_error = self.BucketNotFoundError(
                 f"Cannot get download URL for file {object_id} because"
-                + f" the bucket {self._inbox_bucket_id} does not exist."
+                + f" the bucket {bucket_id} does not exist."
             )
             log.critical(bucket_error, exc_info=True)
             raise bucket_error from err
@@ -117,7 +116,7 @@ class S3Client(S3ClientPort):
         except Exception as err:
             error = self.DownloadError(
                 "An unexpected error occurred while trying to generate a download URL"
-                + f" for file {object_id} in bucket {self._inbox_bucket_id}."
+                + f" for file {object_id} in bucket {bucket_id}."
             )
             log.error(error, exc_info=True)
             raise error from err
@@ -125,6 +124,7 @@ class S3Client(S3ClientPort):
     async def fetch_file_content_range(
         self,
         *,
+        bucket_id: str,
         object_id: str,
         start: int,
         stop: int,
@@ -140,9 +140,13 @@ class S3Client(S3ClientPort):
         - DownloadError if the download request fails or returns an unexpected status code.
         """
         if bust_cache:
-            self._get_download_url.cache_invalidate(object_id=object_id)
+            self._get_download_url.cache_invalidate(
+                bucket_id=bucket_id, object_id=object_id
+            )
 
-        download_url = await self._get_download_url(object_id=object_id)
+        download_url = await self._get_download_url(
+            bucket_id=bucket_id, object_id=object_id
+        )
 
         headers = httpx.Headers(
             {
@@ -159,12 +163,16 @@ class S3Client(S3ClientPort):
         if status_code == 403 and not bust_cache:
             log.info(f"Download URL for {object_id} is stale - generating a fresh one")
             return await self.fetch_file_content_range(
-                object_id=object_id, start=start, stop=stop, bust_cache=True
+                bucket_id=bucket_id,
+                object_id=object_id,
+                start=start,
+                stop=stop,
+                bust_cache=True,
             )
 
         error = self.DownloadError(
             f"Received a {status_code} error when trying to download file {object_id}"
-            + f" from bucket {self._inbox_bucket_id}."
+            + f" from bucket {bucket_id}."
         )
         log.error(
             error,

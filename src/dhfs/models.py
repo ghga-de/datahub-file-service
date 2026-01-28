@@ -46,6 +46,7 @@ class FileUpload(BaseModel):
 
     id: UUID4
     storage_alias: str
+    bucket_id: str
     decrypted_sha256: str
     decrypted_size: int
     encrypted_size: int
@@ -119,10 +120,24 @@ class FileUpload(BaseModel):
 class InterrogationReport(BaseModel):
     """Model representing the outcome of a file interrogation"""
 
-    file_id: UUID4
-    storage_alias: str
-    interrogated_at: UTCDatetime
-    passed: bool
+    file_id: UUID4 = Field(..., description="The unique identifier of the file")
+    storage_alias: str = Field(
+        ...,
+        description="The storage alias indicating the data hub the file is housed at",
+    )
+    bucket_id: str | None = Field(
+        default=None,
+        description=(
+            "The name of the interrogation bucket the file is stored"
+            + " in, if interrogation was successful"
+        ),
+    )
+    interrogated_at: UTCDatetime = Field(
+        ..., description="The time interrogation occurred."
+    )
+    passed: bool = Field(
+        ..., description="Whether or not interrogation was successful."
+    )
     secret: SecretBytes | None = Field(
         default=None, description="The base64-encoded encrypted file encryption secret."
     )

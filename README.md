@@ -162,7 +162,6 @@ The service requires the following configuration parameters:
   ```
 
 - <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
-- <a id="properties/inbox_bucket_id"></a>**`inbox_bucket_id`** *(string)*: The name for the S3 'inbox' bucket. Default: `"inbox"`.
 - <a id="properties/interrogation_bucket_id"></a>**`interrogation_bucket_id`** *(string)*: The name for the S3 'interrogation' bucket. Default: `"interrogation"`.
 
 ### Usage:

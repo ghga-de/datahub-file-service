@@ -17,6 +17,7 @@
 
 import hashlib
 from collections.abc import AsyncGenerator
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -27,10 +28,9 @@ from hexkit.providers.s3.testutils import temp_file_object
 from dhfs.adapters.outbound.http import get_configured_httpx_client
 from dhfs.adapters.outbound.s3 import S3Client
 from tests.fixtures.joint import JointFixture
-from tests.fixtures.utils import upload_dummy_data
+from tests.fixtures.utils import INBOX, upload_dummy_data
 
 pytestmark = pytest.mark.asyncio()
-from uuid import uuid4
 
 
 @pytest_asyncio.fixture(name="s3_client")
@@ -46,21 +46,18 @@ async def _s3_client(joint_fixture: JointFixture) -> AsyncGenerator[S3Client]:
 
 async def test_get_is_file_in_inbox(joint_fixture: JointFixture, s3_client: S3Client):
     """Test the functionality of `S3Client.get_is_file_in_inbox()`"""
-    config = joint_fixture.config
-
     # Generate a file ID and verify that it doesn't exist yet
     file_id = uuid4()
-    is_in_inbox = await s3_client.get_is_file_in_inbox(file_id=file_id)
+    is_in_inbox = await s3_client.get_is_file_in_inbox(bucket_id=INBOX, file_id=file_id)
     assert isinstance(is_in_inbox, bool)
     assert not is_in_inbox
 
     # Add an object to the inbox bucket with the generated file ID
-    inbox = config.inbox_bucket_id
-    with temp_file_object(bucket_id=inbox, object_id=str(file_id)) as file_object:
+    with temp_file_object(bucket_id=INBOX, object_id=str(file_id)) as file_object:
         await joint_fixture.s3.populate_file_objects([file_object])
 
     # Assert that the object now exists
-    assert await s3_client.get_is_file_in_inbox(file_id=file_id)
+    assert await s3_client.get_is_file_in_inbox(bucket_id=INBOX, file_id=file_id)
 
 
 async def test_list_files_in_interrogation_bucket(
@@ -101,23 +98,27 @@ async def test_fetch_file_content_range(
     # Try when the inbox bucket doesn't exist yet.
     object_id = str(uuid4())
     with pytest.raises(S3Client.BucketNotFoundError):
-        await s3_client.fetch_file_content_range(object_id=object_id, start=0, stop=115)
+        await s3_client.fetch_file_content_range(
+            bucket_id=INBOX, object_id=object_id, start=0, stop=115
+        )
 
     # Create the bucket
-    inbox = joint_fixture.config.inbox_bucket_id
-    await joint_fixture.s3.storage.create_bucket(inbox)
+    await joint_fixture.s3.storage.create_bucket(INBOX)
 
     # Try to get a file part for a non-existent file
     with pytest.raises(S3Client.ObjectNotFoundError):
-        await s3_client.fetch_file_content_range(object_id=object_id, start=0, stop=115)
+        await s3_client.fetch_file_content_range(
+            bucket_id=INBOX, object_id=object_id, start=0, stop=115
+        )
 
     # Upload some test data
     await upload_dummy_data(
-        bucket_id=inbox, object_id=object_id, storage=joint_fixture.s3.storage
+        bucket_id=INBOX, object_id=object_id, storage=joint_fixture.s3.storage
     )
 
     # Fetch and inspect data
     content = await s3_client.fetch_file_content_range(
+        bucket_id=INBOX,
         object_id=object_id,
         start=0,
         stop=116,  # stop is exclusive, fetch 116 bytes

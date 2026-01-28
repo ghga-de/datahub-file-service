@@ -21,7 +21,6 @@ client_retry_status_codes:
 crypt4gh_private_key_passphrase: null
 data_hub_crypt4gh_private_key_path: key.sec
 data_hub_signing_key: '**********'
-inbox_bucket_id: inbox
 interrogation_bucket_id: interrogation
 log_format: null
 log_level: INFO

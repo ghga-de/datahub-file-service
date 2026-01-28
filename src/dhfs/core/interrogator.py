@@ -53,7 +53,7 @@ class Interrogator(InterrogatorPort):
         s3_client: S3ClientPort,
     ):
         """Initialize the Interrogator"""
-        self._inbox_bucket_name = config.inbox_bucket_id
+        self._storage_alias = config.storage_alias
         self._interrogation_bucket_name = config.interrogation_bucket_id
         self._central_client = central_client
         self._data_hub_private_key = SecretBytes(
@@ -77,7 +77,9 @@ class Interrogator(InterrogatorPort):
         for file in new_files:
             try:
                 # Verify that the file exists in the inbox before proceeding
-                if not await self._s3_client.get_is_file_in_inbox(file_id=file.id):
+                if not await self._s3_client.get_is_file_in_inbox(
+                    bucket_id=file.bucket_id, file_id=file.id
+                ):
                     raise self.FileNotFoundError(file_id=file.id)
                 await self.interrogate_file(file)
             except self.InterrogationError as err:
@@ -94,7 +96,10 @@ class Interrogator(InterrogatorPort):
         - ValueError if the secrets list returned by Crypt4GH is not 1 element long.
         """
         envelope = await self._s3_client.fetch_file_content_range(
-            object_id=str(file_upload.id), start=0, stop=file_upload.offset
+            bucket_id=file_upload.bucket_id,
+            object_id=str(file_upload.id),
+            start=0,
+            stop=file_upload.offset,
         )
         return self._extract_secret(envelope=envelope)
 
@@ -115,7 +120,12 @@ class Interrogator(InterrogatorPort):
         return SecretBytes(session_keys[0])
 
     async def _fetch_and_decrypt_part(
-        self, *, object_id: str, part_range: PartRange, secret: SecretBytes
+        self,
+        *,
+        bucket_id: str,
+        object_id: str,
+        part_range: PartRange,
+        secret: SecretBytes,
     ) -> bytes:
         """Download and decrypt a single file part.
 
@@ -126,7 +136,10 @@ class Interrogator(InterrogatorPort):
         - DecryptionError if the part cannot be decrypted (wrapped from underlying exceptions).
         """
         part = await self._s3_client.fetch_file_content_range(
-            object_id=object_id, start=part_range.start, stop=part_range.stop
+            bucket_id=bucket_id,
+            object_id=object_id,
+            start=part_range.start,
+            stop=part_range.stop,
         )
         return self._decrypt_part(encrypted_part=part, secret=secret)
 
@@ -209,7 +222,10 @@ class Interrogator(InterrogatorPort):
             # Initial decryption
             try:
                 decrypted_part = await self._fetch_and_decrypt_part(
-                    object_id=object_id, part_range=part_range, secret=old_secret
+                    bucket_id=file_upload.bucket_id,
+                    object_id=object_id,
+                    part_range=part_range,
+                    secret=old_secret,
                 )
             except Exception as err:
                 log.error(
@@ -379,6 +395,7 @@ class Interrogator(InterrogatorPort):
         # Issue report to Central API containing new encryption secret and checksums
         await self.report_success(
             file_id=file_upload.id,
+            bucket_id=self._interrogation_bucket_name,
             secret=new_secret,
             encrypted_parts_md5=checksums.encrypted_md5,
             encrypted_parts_sha256=checksums.encrypted_sha256,
@@ -388,6 +405,7 @@ class Interrogator(InterrogatorPort):
         self,
         *,
         file_id: UUID4,
+        bucket_id: str,
         secret: SecretBytes,
         encrypted_parts_md5: list[bytes],
         encrypted_parts_sha256: list[bytes],
@@ -399,7 +417,8 @@ class Interrogator(InterrogatorPort):
         """
         report = InterrogationReport(
             file_id=file_id,
-            storage_alias=self._inbox_bucket_name,
+            storage_alias=self._storage_alias,
+            bucket_id=bucket_id,
             interrogated_at=now_utc_ms_prec(),
             passed=True,
             secret=secret,
@@ -426,7 +445,7 @@ class Interrogator(InterrogatorPort):
         """
         report = InterrogationReport(
             file_id=file_id,
-            storage_alias=self._inbox_bucket_name,
+            storage_alias=self._storage_alias,
             interrogated_at=now_utc_ms_prec(),
             passed=False,
             reason=reason,

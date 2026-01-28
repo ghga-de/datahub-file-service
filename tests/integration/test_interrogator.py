@@ -34,6 +34,7 @@ from tests.fixtures.utils import (
 )
 
 PART_SIZE = 6 * (1024**2)  # 6291456 bytes
+INBOX = "inbox1"
 
 
 pytestmark = [
@@ -53,8 +54,7 @@ async def test_interrogate_new_files(
     """Test the interrogation process for a single file"""
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_bucket_id
-    await joint_fixture.s3.storage.create_bucket(inbox)
+    await joint_fixture.s3.storage.create_bucket(INBOX)
 
     # Add files to the inbox
     object_ids = sorted([str(uuid4()) for _ in range(2)])
@@ -64,7 +64,7 @@ async def test_interrogate_new_files(
             part_size=PART_SIZE, file_size=int(PART_SIZE * 2.5)
         )
         await upload_encrypted_object(
-            bucket_id=inbox,
+            bucket_id=INBOX,
             object_id=object_id,
             storage=joint_fixture.s3.storage,
             encrypted_object=encrypted_object,
@@ -74,6 +74,7 @@ async def test_interrogate_new_files(
                 id=UUID(object_id),
                 decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
                 storage_alias=config.storage_alias,
+                bucket_id=INBOX,
                 decrypted_size=encrypted_object.unencrypted_size,
                 encrypted_size=encrypted_object.encrypted_size,
                 part_size=PART_SIZE,
@@ -112,7 +113,6 @@ async def test_interrogate_new_files(
     await joint_fixture.interrogator.interrogate_new_files()
 
     # Check the interrogation bucket
-    # TODO: Expose S3Client
     s3_client: S3Client = joint_fixture.interrogator._s3_client  # type: ignore
     interrogation_files = await s3_client.list_files_in_interrogation_bucket()
 
@@ -126,7 +126,8 @@ async def test_interrogate_new_files(
     # Verify each report has the correct structure for successful interrogation
     for report, file_upload in zip(received_reports, file_uploads, strict=True):
         assert report["file_id"] == str(file_upload.id)
-        assert report["storage_alias"] == inbox
+        assert report["storage_alias"] == file_upload.storage_alias
+        assert report["bucket_id"] == config.interrogation_bucket_id
         assert report["passed"] is True
         assert report["reason"] is None
         assert report["interrogated_at"] is not None
@@ -171,7 +172,7 @@ async def test_report_failure(joint_fixture: JointFixture, httpx_mock: HTTPXMock
 
     # Verify the payload structure and content
     assert payload["file_id"] == str(file_id)
-    assert payload["storage_alias"] == config.inbox_bucket_id
+    assert payload["storage_alias"] == config.storage_alias
     assert payload["passed"] is False
     assert payload["reason"] == failure_reason
     assert payload["interrogated_at"] is not None
@@ -188,8 +189,7 @@ async def test_api_down_during_report_submission(
     """
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_bucket_id
-    await joint_fixture.s3.storage.create_bucket(inbox)
+    await joint_fixture.s3.storage.create_bucket(INBOX)
 
     # Add a file to the inbox
     object_id = str(uuid4())
@@ -197,7 +197,7 @@ async def test_api_down_during_report_submission(
         part_size=PART_SIZE, file_size=int(PART_SIZE * 2.5)
     )
     await upload_encrypted_object(
-        bucket_id=inbox,
+        bucket_id=INBOX,
         object_id=object_id,
         storage=joint_fixture.s3.storage,
         encrypted_object=encrypted_object,
@@ -206,6 +206,7 @@ async def test_api_down_during_report_submission(
         id=UUID(object_id),
         decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
         storage_alias=config.storage_alias,
+        bucket_id=INBOX,
         decrypted_size=encrypted_object.unencrypted_size,
         encrypted_size=encrypted_object.encrypted_size,
         part_size=PART_SIZE,
@@ -248,13 +249,13 @@ async def test_file_not_in_inbox(joint_fixture: JointFixture, httpx_mock: HTTPXM
     """
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_bucket_id
-    await joint_fixture.s3.storage.create_bucket(inbox)
+    await joint_fixture.s3.storage.create_bucket(INBOX)
 
     file_upload = FileUpload(
         id=uuid4(),
         decrypted_sha256="abc123",
         storage_alias=config.storage_alias,
+        bucket_id=INBOX,
         decrypted_size=1024,
         encrypted_size=1228,
         part_size=PART_SIZE,
@@ -283,8 +284,7 @@ async def test_file_decryption_error(
     """
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_bucket_id
-    await joint_fixture.s3.storage.create_bucket(inbox)
+    await joint_fixture.s3.storage.create_bucket(INBOX)
 
     # Create an encrypted object but corrupt its content to cause decryption failure
     object_id = str(uuid4())
@@ -311,7 +311,7 @@ async def test_file_decryption_error(
 
     # Upload the object
     await upload_encrypted_object(
-        bucket_id=inbox,
+        bucket_id=INBOX,
         object_id=object_id,
         storage=joint_fixture.s3.storage,
         encrypted_object=corrupted_object,
@@ -321,6 +321,7 @@ async def test_file_decryption_error(
         id=UUID(object_id),
         decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
         storage_alias=config.storage_alias,
+        bucket_id=INBOX,
         decrypted_size=encrypted_object.unencrypted_size,
         encrypted_size=encrypted_object.encrypted_size,
         part_size=PART_SIZE,
@@ -381,8 +382,7 @@ async def test_etag_doesnt_match_local_md5(
     """
     # Create the inbox bucket
     config = joint_fixture.config
-    inbox = config.inbox_bucket_id
-    await joint_fixture.s3.storage.create_bucket(inbox)
+    await joint_fixture.s3.storage.create_bucket(INBOX)
 
     # Add a file to the inbox
     object_id = str(uuid4())
@@ -390,7 +390,7 @@ async def test_etag_doesnt_match_local_md5(
         part_size=PART_SIZE, file_size=int(PART_SIZE * 2.5)
     )
     await upload_encrypted_object(
-        bucket_id=inbox,
+        bucket_id=INBOX,
         object_id=object_id,
         storage=joint_fixture.s3.storage,
         encrypted_object=encrypted_object,
@@ -399,6 +399,7 @@ async def test_etag_doesnt_match_local_md5(
         id=UUID(object_id),
         decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
         storage_alias=config.storage_alias,
+        bucket_id=INBOX,
         decrypted_size=encrypted_object.unencrypted_size,
         encrypted_size=encrypted_object.encrypted_size,
         part_size=PART_SIZE,

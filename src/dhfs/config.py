@@ -56,10 +56,6 @@ class Config(
 ):
     """Config parameters and their defaults."""
 
-    inbox_bucket_id: str = Field(
-        default="inbox",
-        description="The name for the S3 'inbox' bucket",
-    )
     interrogation_bucket_id: str = Field(
         default="interrogation",
         description="The name for the S3 'interrogation' bucket",

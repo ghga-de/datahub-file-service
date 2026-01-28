@@ -86,7 +86,7 @@ class S3ClientPort(ABC):
         """Raised when an upload or download URL is rejected with a 403 error"""
 
     @abstractmethod
-    async def get_is_file_in_inbox(self, *, file_id: UUID4) -> bool:
+    async def get_is_file_in_inbox(self, *, bucket_id: str, file_id: UUID4) -> bool:
         """Return a bool indicating whether the file exists in the inbox"""
 
     @abstractmethod
@@ -99,7 +99,13 @@ class S3ClientPort(ABC):
 
     @abstractmethod
     async def fetch_file_content_range(
-        self, *, object_id: str, start: int, stop: int, bust_cache: bool = False
+        self,
+        *,
+        bucket_id: str,
+        object_id: str,
+        start: int,
+        stop: int,
+        bust_cache: bool = False,
     ) -> bytes:
         """Download a single file part for the bytes in range `start` - `stop` (exclusive end, like Python slicing).
 

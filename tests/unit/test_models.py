@@ -16,24 +16,19 @@
 """Unit tests for models"""
 
 from math import ceil
-from uuid import uuid4
 
 import crypt4gh.lib
 
-from dhfs.models import FileUpload
-from tests.fixtures.utils import get_encrypted_object
+from tests.fixtures.utils import get_encrypted_object, make_file_upload
 
 
 def test_file_upload_offset():
     """Test the computed properties of a FileUpload"""
     part_size = 5 * 1024**2
     encrypted_object = get_encrypted_object(part_size=part_size)
-    f = FileUpload(
-        id=uuid4(),
-        storage_alias="TUE01",
-        decrypted_sha256="test",
-        decrypted_size=encrypted_object.unencrypted_size,
-        encrypted_size=encrypted_object.encrypted_size,
+    f = make_file_upload(
+        encrypted_object.unencrypted_size,
+        encrypted_object.encrypted_size,
         part_size=part_size,
     )
 
@@ -46,13 +41,9 @@ def test_calc_part_ranges():
     part_size = 5 * 1024**2  # 5 MiB
     file_size = int(part_size * 2.5)  # 2.5 parts worth of data
     encrypted_object = get_encrypted_object(part_size=part_size, file_size=file_size)
-
-    f = FileUpload(
-        id=uuid4(),
-        storage_alias="TUE01",
-        decrypted_sha256="test",
-        decrypted_size=encrypted_object.unencrypted_size,
-        encrypted_size=encrypted_object.encrypted_size,
+    f = make_file_upload(
+        encrypted_object.unencrypted_size,
+        encrypted_object.encrypted_size,
         part_size=part_size,
     )
 
@@ -99,13 +90,9 @@ def test_calc_part_ranges_single_part():
     part_size = 10 * 1024**2  # 10 MiB
     file_size = 1024**2  # 1 MiB (much smaller than part_size)
     encrypted_object = get_encrypted_object(part_size=part_size, file_size=file_size)
-
-    f = FileUpload(
-        id=uuid4(),
-        storage_alias="TUE01",
-        decrypted_sha256="test",
-        decrypted_size=encrypted_object.unencrypted_size,
-        encrypted_size=encrypted_object.encrypted_size,
+    f = make_file_upload(
+        encrypted_object.unencrypted_size,
+        encrypted_object.encrypted_size,
         part_size=part_size,
     )
 
@@ -131,14 +118,7 @@ def test_adjusted_part_size_small_file():
         decrypted_size + (decrypted_size // crypt4gh.lib.SEGMENT_SIZE) * 28 + 1000
     )
 
-    f = FileUpload(
-        id=uuid4(),
-        storage_alias="TUE01",
-        decrypted_sha256="test",
-        decrypted_size=decrypted_size,
-        encrypted_size=encrypted_size,
-        part_size=part_size,
-    )
+    f = make_file_upload(decrypted_size, encrypted_size, part_size=part_size)
 
     # Verify adjusted part size is evenly divisible by CIPHER_SEGMENT_SIZE
     assert f.adjusted_part_size % crypt4gh.lib.CIPHER_SEGMENT_SIZE == 0
@@ -162,14 +142,7 @@ def test_adjusted_part_size_big_file():
         decrypted_size + (decrypted_size // crypt4gh.lib.SEGMENT_SIZE) * 28 + 1000
     )
 
-    f_large = FileUpload(
-        id=uuid4(),
-        storage_alias="TUE01",
-        decrypted_sha256="test",
-        decrypted_size=decrypted_size,
-        encrypted_size=encrypted_size,
-        part_size=part_size,
-    )
+    f_large = make_file_upload(decrypted_size, encrypted_size, part_size=part_size)
 
     # Verify adjusted part size is still evenly divisible by CIPHER_SEGMENT_SIZE
     assert f_large.adjusted_part_size % crypt4gh.lib.CIPHER_SEGMENT_SIZE == 0
