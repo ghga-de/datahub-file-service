@@ -15,6 +15,7 @@
 
 """Unit tests for models"""
 
+from math import ceil
 from uuid import uuid4
 
 import crypt4gh.lib
@@ -119,3 +120,78 @@ def test_calc_part_ranges_single_part():
     # Should cover the entire encrypted content (minus envelope)
     assert ranges[0].start == f.offset
     assert ranges[0].stop == encrypted_object.encrypted_size
+
+
+def test_adjusted_part_size_small_file():
+    """Test that adjusted part size is calculated so the part size is, except for
+    the last part, evenly divisible by CIPHER_SEGMENT_SIZE.
+    """
+    # Test case A: Normal case - part size is adjusted to align with CIPHER_SEGMENT_SIZE
+    part_size = 5 * 1024**2  # 5 MiB
+    decrypted_size = 100 * 1024**2  # 100 MiB
+    # Calculate approximate encrypted size (slightly larger due to encryption overhead)
+    encrypted_size = (
+        decrypted_size + (decrypted_size // crypt4gh.lib.SEGMENT_SIZE) * 28 + 1000
+    )
+
+    f = FileUpload(
+        id=uuid4(),
+        data_hub="TUE",
+        storage_alias="inbox",
+        decrypted_sha256="test",
+        decrypted_size=decrypted_size,
+        encrypted_size=encrypted_size,
+        part_size=part_size,
+    )
+
+    # Verify adjusted part size is evenly divisible by CIPHER_SEGMENT_SIZE
+    assert f.adjusted_part_size % crypt4gh.lib.CIPHER_SEGMENT_SIZE == 0
+
+    # Verify all ranges (except possibly the last) use the adjusted part size
+    ranges = list(f.calc_encrypted_part_ranges())
+    assert ranges.pop().stop == f.encrypted_size
+    assert all((r.stop - r.start) == f.adjusted_part_size for r in ranges)
+
+
+def test_adjusted_part_size_big_file():
+    """Test that adjusted part size is calculated so there are less than 10k parts in
+    the interrogation bucket upload.
+    """
+    # Test case B: Large file that would exceed 10k parts with normal part size
+    part_size = 5 * 1024**2  # 5 MiB
+    # Create a large file: 60 GiB decrypted would result in > 10k parts at 5 MiB each
+    decrypted_size = 60 * 1024**3  # 60 GiB
+    # Calculate approximate encrypted size
+    encrypted_size = (
+        decrypted_size + (decrypted_size // crypt4gh.lib.SEGMENT_SIZE) * 28 + 1000
+    )
+
+    f_large = FileUpload(
+        id=uuid4(),
+        data_hub="TUE",
+        storage_alias="inbox",
+        decrypted_sha256="test",
+        decrypted_size=decrypted_size,
+        encrypted_size=encrypted_size,
+        part_size=part_size,
+    )
+
+    # Verify adjusted part size is still evenly divisible by CIPHER_SEGMENT_SIZE
+    assert f_large.adjusted_part_size % crypt4gh.lib.CIPHER_SEGMENT_SIZE == 0
+
+    # Verify that the number of parts is less than 10,000
+    ranges_large = list(f_large.calc_encrypted_part_ranges())
+    assert len(ranges_large) < 10_000, (
+        f"Expected < 10000 parts, got {len(ranges_large)}"
+    )
+
+    # Verify the adjusted part size was actually increased from the original
+    # Calculate what the non-adjusted aligned part size would be
+    segments_per_part = max(1, part_size // crypt4gh.lib.CIPHER_SEGMENT_SIZE)
+    basic_adjusted_part_size = segments_per_part * crypt4gh.lib.CIPHER_SEGMENT_SIZE
+
+    # If the file would exceed 10k parts with the basic adjusted size,
+    # the adjusted_part_size should be larger
+    encrypted_content_size = encrypted_size - f_large.offset
+    if ceil(encrypted_content_size / basic_adjusted_part_size) >= 10_000:
+        assert f_large.adjusted_part_size > basic_adjusted_part_size

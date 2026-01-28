@@ -252,9 +252,9 @@ class Interrogator(InterrogatorPort):
             checksums.update_unencrypted(decrypted_part)
 
             upload_buffer += reencrypted_part
-            if len(upload_buffer) >= file_upload.part_size:
+            if len(upload_buffer) >= file_upload.adjusted_part_size:
                 # Calculate part's encrypted md5 and sha256
-                part_to_upload = bytes(upload_buffer[: file_upload.part_size])
+                part_to_upload = bytes(upload_buffer[: file_upload.adjusted_part_size])
                 checksums.update_encrypted(part_to_upload)
 
                 # Upload the re-encrypted part
@@ -273,7 +273,7 @@ class Interrogator(InterrogatorPort):
                     raise self.InterrogationError() from err
 
                 # Set buffer to whatever the remainder was
-                upload_buffer = upload_buffer[file_upload.part_size :]
+                upload_buffer = upload_buffer[file_upload.adjusted_part_size :]
 
         # Upload remaining file content if needed
         if upload_buffer:

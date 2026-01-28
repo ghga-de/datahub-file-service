@@ -19,6 +19,7 @@ import logging
 from collections.abc import Generator
 from dataclasses import dataclass
 from functools import cached_property
+from math import ceil
 
 import crypt4gh.lib
 from ghga_service_commons.utils.utc_dates import UTCDatetime
@@ -74,17 +75,28 @@ class FileUpload(BaseModel):
         #  and use that to calculate the size of the envelope / offset of the content.
         return self.encrypted_size - size_sans_envelope
 
-    def calc_encrypted_part_ranges(self) -> Generator[PartRange]:
-        """Calculate file part ranges that align with the Crypt4GH segment size"""
-        # Each encrypted segment consists of: nonce + encrypted_data + auth_tag
-        encrypted_segment_size = (
-            NONCE_LENGTH + crypt4gh.lib.SEGMENT_SIZE + AUTH_TAG_LENGTH
-        )
+    @computed_field  # type: ignore[prop-decorator]
+    @cached_property
+    def adjusted_part_size(self) -> int:
+        """Calculate the adjusted part size which is both evenly divisible by
+        the cipher segment size and ensures the file will contain < 10000 parts (the S3
+        limit for multipart uploads). This ensures we download complete segments that
+        can be decrypted.
+        """
+        segments_per_part = max(1, self.part_size // crypt4gh.lib.CIPHER_SEGMENT_SIZE)
+        adjusted_part_size = segments_per_part * crypt4gh.lib.CIPHER_SEGMENT_SIZE
 
-        # Adjust part_size to be a multiple of the encrypted segment size
-        # This ensures we download complete segments that can be decrypted
-        segments_per_part = max(1, self.part_size // encrypted_segment_size)
-        adjusted_part_size = segments_per_part * encrypted_segment_size
+        # If the adjusted size would result in hitting 10k parts, we need to increase
+        #  the part size to bring that below the 10k threshold (we'll shoot for 9995)
+        if ceil(self.encrypted_size / adjusted_part_size) >= 10_000:
+            # Get a part size that breaks the encrypted content into 9995 parts, then
+            #  divide evenly by CIPHER_SEGMENT_SIZE
+            new_part_size = ceil((self.encrypted_size - self.offset) / 9_995)
+
+            # Bring into alignment again, rounding part size up since we're trying to
+            #  keep total part count down and it's already near the limit
+            segments_per_part = ceil(new_part_size / crypt4gh.lib.CIPHER_SEGMENT_SIZE)
+            adjusted_part_size = segments_per_part * crypt4gh.lib.CIPHER_SEGMENT_SIZE
 
         if adjusted_part_size != self.part_size:
             log.info(
@@ -93,11 +105,14 @@ class FileUpload(BaseModel):
                 adjusted_part_size,
                 self.id,
             )
+        return adjusted_part_size
 
+    def calc_encrypted_part_ranges(self) -> Generator[PartRange]:
+        """Calculate file part ranges that align with the Crypt4GH segment size"""
         processed = self.offset
         while processed < self.encrypted_size:
             start = processed
-            processed += adjusted_part_size
+            processed += self.adjusted_part_size
             end = min(processed, self.encrypted_size)
             yield PartRange(start, end)
 
