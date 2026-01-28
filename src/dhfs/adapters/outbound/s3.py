@@ -384,9 +384,10 @@ class S3Client(S3ClientPort):
             # If the object exists, then the UploadNotFoundError must have occurred
             #  due to some timing hiccup -- the file is there so we can squash the error
             #  and return the existing etag
-            return await self._storage.get_object_etag(
+            etag = await self._storage.get_object_etag(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             )
+            return etag.strip('"')
         except Exception as err:
             # Other errors prevent us from drawing a conclusion about interrogation.
             # All we can do is perform cleanup and let the process start over
