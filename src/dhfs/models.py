@@ -34,12 +34,10 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class PartRange:
-    """Container for inclusive download ranges"""
+    """Container for download ranges"""
 
     start: int
     stop: int
-
-    # segment_boundaries:
 
 
 class FileUpload(BaseModel):
@@ -57,12 +55,23 @@ class FileUpload(BaseModel):
     @cached_property
     def offset(self) -> int:
         """Calculate the size of the file encryption envelope/where content begins"""
-        chunk_size = crypt4gh.lib.CIPHER_SEGMENT_SIZE
+        # The number of encrypted chunks produced during encryption depends on the file
+        #  size. ChaCha20Poly1305 encrypts SEGMENT_SIZE bytes at a time
         chunks = self.decrypted_size // crypt4gh.lib.SEGMENT_SIZE
+
+        # Each full-length encrypted chunk in the file is CIPHER_SEGMENT_SIZE bytes long
+        # The difference is 28 bytes. This comes from a 12-byte NONCE and a 16-byte auth tag.
+        chunk_size = crypt4gh.lib.CIPHER_SEGMENT_SIZE
+
+        # The last bytes of the file, which are less than SEGMENT_SIZE, are encrypted as
+        #  is - no magic padding. So if there are 40 straggler bytes, it's 68 when encrypted.
         unencrypted_remainder = self.decrypted_size - crypt4gh.lib.SEGMENT_SIZE * chunks
         size_sans_envelope = chunk_size * chunks
         if unencrypted_remainder:
             size_sans_envelope += unencrypted_remainder + NONCE_LENGTH + AUTH_TAG_LENGTH
+
+        # We can therefore calculate the encrypted file size given the decrypted size,
+        #  and use that to calculate the size of the envelope / offset of the content.
         return self.encrypted_size - size_sans_envelope
 
     def calc_encrypted_part_ranges(self) -> Generator[PartRange]:
