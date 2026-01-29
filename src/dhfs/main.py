@@ -36,7 +36,7 @@ async def run_interrogator(forever: bool = True):
                 if (
                     timediff := (stop - start).seconds
                 ) < config.min_run_interval_seconds:
-                    await sleep(timediff)
+                    await sleep(config.min_run_interval_seconds - timediff)
         else:
             await interrogator.interrogate_new_files()
 
