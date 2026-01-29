@@ -102,7 +102,7 @@ class FileUpload(BaseModel):
         limit for multipart uploads). This ensures we download complete segments that
         can be decrypted.
         """
-        segments_per_part = max(1, self.part_size // crypt4gh.lib.CIPHER_SEGMENT_SIZE)
+        segments_per_part = ceil(self.part_size / crypt4gh.lib.CIPHER_SEGMENT_SIZE)
         adjusted_part_size = segments_per_part * crypt4gh.lib.CIPHER_SEGMENT_SIZE
 
         # If the adjusted size would result in hitting 10k parts, we need to increase
@@ -119,7 +119,8 @@ class FileUpload(BaseModel):
 
         if adjusted_part_size != self.part_size:
             log.info(
-                "Adjusted part size from %d to %d bytes to align with Crypt4GH segment boundaries for file %s",
+                "Adjusted part size from %d to %d bytes to align with Crypt4GH segment"
+                + " boundaries for file %s",
                 self.part_size,
                 adjusted_part_size,
                 self.id,

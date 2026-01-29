@@ -51,7 +51,7 @@ def test_calc_part_ranges():
     encrypted_segment_size = crypt4gh.lib.CIPHER_SEGMENT_SIZE
 
     # Calculate the expected adjusted part size
-    segments_per_part = max(1, part_size // encrypted_segment_size)
+    segments_per_part = ceil(part_size / encrypted_segment_size)
     expected_adjusted_part_size = segments_per_part * encrypted_segment_size
 
     # Get all part ranges
