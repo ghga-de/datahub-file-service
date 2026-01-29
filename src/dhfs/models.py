@@ -44,13 +44,32 @@ class PartRange:
 class FileUpload(BaseModel):
     """Represents a file that needs to be interrogated and re-encrypted"""
 
-    id: UUID4
-    storage_alias: str
-    bucket_id: str
-    decrypted_sha256: str
-    decrypted_size: int
-    encrypted_size: int
-    part_size: int
+    id: UUID4 = Field(..., description="The unique identifier of the file")
+    storage_alias: str = Field(
+        default=...,
+        description="The storage alias indicating the data hub the file is housed at",
+    )
+    bucket_id: str = Field(
+        default=...,
+        description="The name of the inbox bucket from which DHFS should fetch the file",
+    )
+    decrypted_sha256: str = Field(
+        default=..., description="The SHA256 checksum of the unencrypted file content."
+    )
+    decrypted_size: int = Field(
+        default=..., description="The size of the unencrypted file content."
+    )
+    encrypted_size: int = Field(
+        default=...,
+        description=(
+            "The size of the encrypted file content. When in the inbox, this"
+            + " includes the Crypt4GH envelope."
+        ),
+    )
+    part_size: int = Field(
+        default=...,
+        description="The part size used by the submitter when uploading this file.",
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @cached_property
@@ -122,7 +141,7 @@ class InterrogationReport(BaseModel):
 
     file_id: UUID4 = Field(..., description="The unique identifier of the file")
     storage_alias: str = Field(
-        ...,
+        default=...,
         description="The storage alias indicating the data hub the file is housed at",
     )
     bucket_id: str | None = Field(
@@ -133,10 +152,10 @@ class InterrogationReport(BaseModel):
         ),
     )
     interrogated_at: UTCDatetime = Field(
-        ..., description="The time interrogation occurred."
+        default=..., description="The time interrogation occurred."
     )
     passed: bool = Field(
-        ..., description="Whether or not interrogation was successful."
+        default=..., description="Whether or not interrogation was successful."
     )
     secret: SecretBytes | None = Field(
         default=None, description="The base64-encoded encrypted file encryption secret."
