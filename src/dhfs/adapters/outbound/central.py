@@ -75,9 +75,9 @@ class CentralClient(CentralClientPort):
             config.data_hub_signing_key.get_secret_value()
         )
         if not self._signing_key.has_private:
-            valuey_error = ValueError("No private token-signing key found.")
-            log.error(valuey_error)
-            raise valuey_error
+            value_error = ValueError("No private token-signing key found.")
+            log.error(value_error)
+            raise value_error
 
     def _make_jwt(self) -> str:
         claims: dict[str, str] = {
