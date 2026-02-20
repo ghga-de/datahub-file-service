@@ -50,18 +50,6 @@
       "title": "Client Cacheable Methods",
       "type": "array"
     },
-    "client_cacheable_status_codes": {
-      "default": [
-        200,
-        201
-      ],
-      "description": "HTTP response status code for which responses are allowed to be cached.",
-      "items": {
-        "type": "integer"
-      },
-      "title": "Client Cacheable Status Codes",
-      "type": "array"
-    },
     "client_exponential_backoff_max": {
       "default": 60,
       "description": "Maximum number of seconds to wait between retries when using exponential backoff retry strategies. The client timeout might need to be adjusted accordingly.",
