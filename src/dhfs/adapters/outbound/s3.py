@@ -161,7 +161,7 @@ class S3Client(S3ClientPort):
             return response.content
 
         if status_code == 403 and not bust_cache:
-            log.info(f"Download URL for {object_id} is stale - generating a fresh one")
+            log.info("Download URL for %s is stale - generating a fresh one", object_id)
             return await self.fetch_file_content_range(
                 bucket_id=bucket_id,
                 object_id=object_id,
@@ -304,7 +304,7 @@ class S3Client(S3ClientPort):
         Raises:
         - BadPartMD5Error if the specified MD5 doesn't match the MD5 calculated by S3.
         - BucketNotFoundError if the interrogation bucket is missing.
-        - UploadError if any other error causes the part upload to fail.
+        - UploadPartError if any other error causes the part upload to fail.
         """
         upload_url = await self._get_part_upload_url(
             upload_id=upload_id,

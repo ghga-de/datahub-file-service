@@ -37,7 +37,7 @@ class S3Cleaner(S3CleanerPort):
         central_client: CentralClientPort,
         s3_client: S3ClientPort,
     ):
-        self._client = central_client
+        self._central_client = central_client
         self._s3_client = s3_client
         self._interrogation_storage_alias = config.interrogation_bucket_id
 
@@ -71,7 +71,7 @@ class S3Cleaner(S3CleanerPort):
         #  in the outbound request, and S3 expects strings. In short, we don't need the
         #  UUID properties, even for validation.
         try:
-            removable_objects = await self._client.get_removable_files(
+            removable_objects = await self._central_client.get_removable_files(
                 object_ids=object_ids
             )
         except Exception as exc:

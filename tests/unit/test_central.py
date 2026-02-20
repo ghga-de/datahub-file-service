@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for the S3 interrogation bucket cleanup logic"""
+"""Unit tests for the CentralClient"""
 
 import base64
 import json
@@ -124,15 +124,12 @@ async def test_jwt_formation(config: Config, httpx_mock: HTTPXMock):
         assert context.iat - now_utc_ms_prec() < timedelta(seconds=3)
         return callback_return_value
 
-    # Register the callback
+    # Register the callback (see callback_return_value defined above for the response)
     httpx_mock.add_callback(callback=callback)
 
     # Test the different methods from the CentralClient
     async with get_configured_httpx_client(config=config) as httpx_client:
         central_client = CentralClient(config=config, httpx_client=httpx_client)
-
-        # Register the callback (see callback_return_value defined above for the response)
-        httpx_mock.add_callback(callback=callback)
         await central_client.fetch_new_uploads()
         await central_client.get_removable_files(object_ids=[])
 

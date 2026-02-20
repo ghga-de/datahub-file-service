@@ -21,7 +21,13 @@ from pytest_httpx import HTTPXMock
 
 from tests.fixtures.joint import JointFixture
 
-pytestmark = pytest.mark.asyncio()
+pytestmark = [
+    pytest.mark.asyncio(),
+    pytest.mark.httpx_mock(
+        should_mock=lambda request: request.url.path.startswith("/central"),
+        assert_all_responses_were_requested=False,
+    ),
+]
 
 
 @pytest.mark.parametrize(
@@ -94,7 +100,6 @@ async def test_cleaner_successful(
         assert "No files marked for removal, exiting." in caplog.text
 
 
-@pytest.mark.httpx_mock(assert_all_responses_were_requested=False)
 async def test_no_files_in_interrogation_bucket(
     joint_fixture: JointFixture,
     httpx_mock: HTTPXMock,
@@ -127,7 +132,10 @@ async def test_no_files_in_interrogation_bucket(
     assert "No files to clean up, exiting." in caplog.text
 
 
-@pytest.mark.httpx_mock(assert_all_requests_were_expected=False)
+@pytest.mark.httpx_mock(
+    assert_all_requests_were_expected=False,
+    should_mock=lambda request: request.url.path.startswith("/central"),
+)
 async def test_central_api_unreachable(
     joint_fixture: JointFixture,
     httpx_mock: HTTPXMock,

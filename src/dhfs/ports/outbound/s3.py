@@ -147,7 +147,7 @@ class S3ClientPort(ABC):
         Raises:
         - BadPartMD5Error if the specified MD5 doesn't match the MD5 calculated by S3.
         - BucketNotFoundError if the interrogation bucket is missing.
-        - UploadError if any other error causes the part upload to fail.
+        - UploadPartError if any other error causes the part upload to fail.
         """
         ...
 

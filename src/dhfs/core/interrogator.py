@@ -55,7 +55,7 @@ class Interrogator(InterrogatorPort):
     ):
         """Initialize the Interrogator"""
         self._storage_alias = config.storage_alias
-        self._interrogation_bucket_name = config.interrogation_bucket_id
+        self._interrogation_bucket_id = config.interrogation_bucket_id
         self._central_client = central_client
         self._data_hub_private_key = SecretBytes(
             get_private_key(
@@ -116,7 +116,7 @@ class Interrogator(InterrogatorPort):
         session_keys, _ = crypt4gh.header.deconstruct(
             infile=envelope_stream, keys=keys, sender_pubkey=None
         )
-        if count := len(session_keys) != 1:
+        if (count := len(session_keys)) != 1:
             raise ValueError(f"Expected session key count to be 1, not {count}")
         return SecretBytes(session_keys[0])
 
@@ -433,7 +433,7 @@ class Interrogator(InterrogatorPort):
         # Issue report to Central API containing new encryption secret and checksums
         await self.report_success(
             file_id=file_upload.id,
-            bucket_id=self._interrogation_bucket_name,
+            bucket_id=self._interrogation_bucket_id,
             object_id=UUID(new_object_id),
             secret=new_secret,
             encrypted_parts_md5=checksums.encrypted_md5,

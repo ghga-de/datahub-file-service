@@ -44,7 +44,7 @@ class PartRange:
 class FileUpload(BaseModel):
     """Represents a file that needs to be interrogated and re-encrypted"""
 
-    id: UUID4 = Field(..., description="The unique identifier of the file")
+    id: UUID4 = Field(default=..., description="The unique identifier of the file")
     storage_alias: str = Field(
         default=...,
         description="The storage alias indicating the data hub the file is housed at",

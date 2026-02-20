@@ -101,8 +101,8 @@ class CentralClient(CentralClientPort):
         """
         try:
             body = response.json()
-            if not isinstance(body, list) and all(
-                isinstance(value, str) for value in body
+            if not (
+                isinstance(body, list) and all(isinstance(value, str) for value in body)
             ):
                 raise TypeError("Response did not contain a list of strings")
         except (JSONDecodeError, TypeError) as err:
