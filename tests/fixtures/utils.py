@@ -175,6 +175,7 @@ def make_file_upload(
         id=uuid4(),
         storage_alias="TUE01",
         bucket_id=INBOX,
+        object_id=uuid4(),
         decrypted_sha256="test",
         decrypted_size=decrypted_size,
         encrypted_size=encrypted_size,

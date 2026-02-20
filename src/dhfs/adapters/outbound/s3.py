@@ -21,7 +21,6 @@ import logging
 import httpx
 from async_lru import alru_cache
 from hexkit.protocols.objstorage import ObjectStorageProtocol
-from pydantic import UUID4
 from tenacity import RetryError
 
 from dhfs.adapters.outbound.http import check_for_request_errors
@@ -31,6 +30,7 @@ from dhfs.constants import (
     DOWNLOAD_URL_LIFESPAN,
     URL_CACHE_SIZE,
 )
+from dhfs.models import FileUpload
 from dhfs.ports.outbound.s3 import S3ClientPort
 
 log = logging.getLogger(__name__)
@@ -53,10 +53,10 @@ class S3Client(S3ClientPort):
         self._interrogation_bucket_id = config.interrogation_bucket_id
         self._httpx_client = httpx_client
 
-    async def get_is_file_in_inbox(self, *, file_id: UUID4, bucket_id: str) -> bool:
+    async def get_is_file_in_inbox(self, *, file: FileUpload) -> bool:
         """Return a bool indicating whether the file exists in the inbox"""
         return await self._storage.does_object_exist(
-            bucket_id=bucket_id, object_id=str(file_id)
+            bucket_id=file.bucket_id, object_id=str(file.object_id)
         )
 
     async def list_files_in_interrogation_bucket(self) -> list[str]:

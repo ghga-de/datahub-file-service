@@ -67,12 +67,12 @@ class S3Cleaner(S3CleanerPort):
             log.info("No files to clean up, exiting.")
             return
 
-        # No need to convert file IDs to UUID here because they are serialized to string
+        # No need to convert obj IDs to UUID here because they are serialized to string
         #  in the outbound request, and S3 expects strings. In short, we don't need the
         #  UUID properties, even for validation.
         try:
             removable_objects = await self._client.get_removable_files(
-                file_ids=object_ids
+                object_ids=object_ids
             )
         except Exception as exc:
             log.error(

@@ -93,7 +93,7 @@ class CentralClient(CentralClientPort):
         """Create an authorization header with a bearer token containing a fresh JWT"""
         return {"Authorization": f"Bearer {self._make_jwt()}"}
 
-    def _response_to_file_id_list(self, response: httpx.Response) -> list[str]:
+    def _response_to_object_id_list(self, response: httpx.Response) -> list[str]:
         """Returns a list of strings from an httpx Response.
 
         Raises:
@@ -144,18 +144,18 @@ class CentralClient(CentralClientPort):
 
         return self._response_to_file_upload_list(response)
 
-    async def get_removable_files(self, *, file_ids: list[str]) -> list[str]:
-        """Ask the GHGA Central API if the objects corresponding to the given file IDs
+    async def get_removable_files(self, *, object_ids: list[str]) -> list[str]:
+        """Ask the GHGA Central API if the objects corresponding to the given object IDs
         can be removed from `interrogation` bucket.
 
-        Returns a list of file IDs that may be removed from the bucket.
+        Returns a list of object IDs that may be removed from the bucket.
 
         Raises:
         - CentralAPIError if the request to the central API fails.
         """
         url = f"{self._base_url}/storages/{self._storage_alias}/uploads/can_remove"
         response = await self._httpx_client.post(
-            url=url, json=file_ids, headers=self._auth_headers()
+            url=url, json=object_ids, headers=self._auth_headers()
         )
 
         if (status_code := response.status_code) != 200:
@@ -163,7 +163,7 @@ class CentralClient(CentralClientPort):
             log.error(error)
             raise error
 
-        return self._response_to_file_id_list(response)
+        return self._response_to_object_id_list(response)
 
     async def submit_interrogation_report(
         self, *, report: models.InterrogationReport

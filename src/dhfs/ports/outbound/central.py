@@ -52,11 +52,11 @@ class CentralClientPort(ABC):
         ...
 
     @abstractmethod
-    async def get_removable_files(self, *, file_ids: list[str]) -> list[str]:
-        """Ask the GHGA Central API if the objects corresponding to the given file IDs
+    async def get_removable_files(self, *, object_ids: list[str]) -> list[str]:
+        """Ask the GHGA Central API if the objects corresponding to the given object IDs
         can be removed from `interrogation` bucket.
 
-        Returns a list of file IDs that may be removed from the bucket.
+        Returns a list of object IDs that may be removed from the bucket.
 
         Raises:
         - CentralAPIError if the request to the central API fails.

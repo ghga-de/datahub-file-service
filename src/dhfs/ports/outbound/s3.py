@@ -17,7 +17,7 @@
 
 from abc import ABC, abstractmethod
 
-from pydantic import UUID4
+from dhfs.models import FileUpload
 
 
 class S3ClientPort(ABC):
@@ -86,7 +86,7 @@ class S3ClientPort(ABC):
         """Raised when an upload or download URL is rejected with a 403 error"""
 
     @abstractmethod
-    async def get_is_file_in_inbox(self, *, bucket_id: str, file_id: UUID4) -> bool:
+    async def get_is_file_in_inbox(self, *, file: FileUpload) -> bool:
         """Return a bool indicating whether the file exists in the inbox"""
 
     @abstractmethod

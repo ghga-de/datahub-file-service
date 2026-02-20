@@ -53,6 +53,9 @@ class FileUpload(BaseModel):
         default=...,
         description="The name of the inbox bucket from which DHFS should fetch the file",
     )
+    object_id: UUID4 = Field(
+        default=..., description="The ID of the file object in the inbox bucket."
+    )
     decrypted_sha256: str = Field(
         default=..., description="The SHA256 checksum of the unencrypted file content."
     )
@@ -150,6 +153,13 @@ class InterrogationReport(BaseModel):
         description=(
             "The name of the interrogation bucket the file is stored"
             + " in, if interrogation was successful"
+        ),
+    )
+    object_id: UUID4 | None = Field(
+        default=None,
+        description=(
+            "The ID of the file specific to its S3 bucket, if the interrogation was"
+            + " successful."
         ),
     )
     interrogated_at: UTCDatetime = Field(
