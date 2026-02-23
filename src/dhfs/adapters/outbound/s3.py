@@ -154,7 +154,11 @@ class S3Client(S3ClientPort):
                 "Cache-Control": "no-store",  # don't cache part downloads
             }
         )
-        response = await self._httpx_client.get(download_url, headers=headers)
+        try:
+            response = await self._httpx_client.get(download_url, headers=headers)
+        except RetryError as retry_error:
+            check_for_request_errors(retry_error, download_url)
+            response = retry_error.last_attempt.result()
 
         status_code = response.status_code
         if status_code in (200, 206):
