@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc:*)",
+      "Bash(pip show:*)",
+      "Bash(python:*)",
+      "Bash(xargs cat:*)"
+    ]
+  }
+}

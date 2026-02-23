@@ -25,8 +25,10 @@ from ghga_service_commons.utils.jwt_helpers import sign_and_serialize_token
 from jwcrypto.jwk import JWK
 from pydantic import Field, HttpUrl, SecretStr, ValidationError
 from pydantic_settings import BaseSettings
+from tenacity import RetryError
 
 from dhfs import models
+from dhfs.adapters.outbound.http import check_for_request_errors
 from dhfs.constants import AUTH_TOKEN_VALID_SECONDS, JWT_AUD, JWT_ISS
 from dhfs.ports.outbound.central import CentralClientPort
 
@@ -135,7 +137,13 @@ class CentralClient(CentralClientPort):
         """
         url = f"{self._base_url}/storages/{self._storage_alias}/uploads"
 
-        response = await self._httpx_client.get(url=url, headers=self._auth_headers())
+        try:
+            response = await self._httpx_client.get(
+                url=url, headers=self._auth_headers()
+            )
+        except RetryError as retry_error:
+            check_for_request_errors(retry_error, url)
+            response = retry_error.last_attempt.result()
 
         if (status_code := response.status_code) != 200:
             error = self.CentralAPIError(url=url, status_code=status_code)
@@ -154,9 +162,13 @@ class CentralClient(CentralClientPort):
         - CentralAPIError if the request to the central API fails.
         """
         url = f"{self._base_url}/storages/{self._storage_alias}/uploads/can_remove"
-        response = await self._httpx_client.post(
-            url=url, json=object_ids, headers=self._auth_headers()
-        )
+        try:
+            response = await self._httpx_client.post(
+                url=url, json=object_ids, headers=self._auth_headers()
+            )
+        except RetryError as retry_error:
+            check_for_request_errors(retry_error, url)
+            response = retry_error.last_attempt.result()
 
         if (status_code := response.status_code) != 200:
             error = self.CentralAPIError(url=url, status_code=status_code)
@@ -182,9 +194,13 @@ class CentralClient(CentralClientPort):
             encoded_secret = base64.urlsafe_b64encode(secret).decode("utf-8")
             body["secret"] = encrypt(encoded_secret, key=self._central_public_key)
 
-        response = await self._httpx_client.post(
-            url=url, headers=self._auth_headers(), json=body
-        )
+        try:
+            response = await self._httpx_client.post(
+                url=url, headers=self._auth_headers(), json=body
+            )
+        except RetryError as retry_error:
+            check_for_request_errors(retry_error, url)
+            response = retry_error.last_attempt.result()
 
         if (status_code := response.status_code) != 201:
             error = self.CentralAPIError(url=url, status_code=status_code)

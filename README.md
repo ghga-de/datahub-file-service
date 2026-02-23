@@ -49,17 +49,6 @@ dhfs --help
 ### Parameters
 
 The service requires the following configuration parameters:
-- <a id="properties/data_hub_crypt4gh_private_key_path"></a>**`data_hub_crypt4gh_private_key_path`** *(string, format: path, required)*: Path to the Data Hub's Crypt4GH private key file.
-
-  Examples:
-  ```json
-  "./key.sec"
-  ```
-
-- <a id="properties/crypt4gh_private_key_passphrase"></a>**`crypt4gh_private_key_passphrase`**: Passphrase needed to read the content of the private key file. Only needed if the private key is encrypted. Default: `null`.
-  - **Any of**
-    - <a id="properties/crypt4gh_private_key_passphrase/anyOf/0"></a>*string*
-    - <a id="properties/crypt4gh_private_key_passphrase/anyOf/1"></a>*null*
 - <a id="properties/client_cache_capacity"></a>**`client_cache_capacity`** *(integer)*: Maximum number of entries to store in the cache. Older entries are evicted once this limit is reached. Exclusive minimum: `0`. Default: `128`.
 - <a id="properties/client_cache_ttl"></a>**`client_cache_ttl`** *(integer)*: Number of seconds after which a stored response is considered stale. Minimum: `0`. Default: `60`.
 - <a id="properties/client_cacheable_methods"></a>**`client_cacheable_methods`** *(array)*: HTTP methods for which responses are allowed to be cached. Default: `["POST", "GET"]`.
@@ -71,6 +60,18 @@ The service requires the following configuration parameters:
 - <a id="properties/client_reraise_from_retry_error"></a>**`client_reraise_from_retry_error`** *(boolean)*: Specifies if the exception wrapped in the final RetryError is reraised or the RetryError is returned as is. Default: `true`.
 - <a id="properties/per_request_jitter"></a>**`per_request_jitter`** *(number)*: Max amount of jitter (in seconds) to add to each request. Minimum: `0`. Default: `0.0`.
 - <a id="properties/retry_after_applicable_for_num_requests"></a>**`retry_after_applicable_for_num_requests`** *(integer)*: Amount of requests after which the stored delay from a 429 response is ignored again. Can be useful to adjust if concurrent requests are fired in quick succession. Exclusive minimum: `0`. Default: `1`.
+- <a id="properties/http_request_timeout_seconds"></a>**`http_request_timeout_seconds`** *(number)*: Request timeout setting in seconds. Default: `60.0`.
+- <a id="properties/data_hub_crypt4gh_private_key_path"></a>**`data_hub_crypt4gh_private_key_path`** *(string, format: path, required)*: Path to the Data Hub's Crypt4GH private key file.
+
+  Examples:
+  ```json
+  "./key.sec"
+  ```
+
+- <a id="properties/crypt4gh_private_key_passphrase"></a>**`crypt4gh_private_key_passphrase`**: Passphrase needed to read the content of the private key file. Only needed if the private key is encrypted. Default: `null`.
+  - **Any of**
+    - <a id="properties/crypt4gh_private_key_passphrase/anyOf/0"></a>*string*
+    - <a id="properties/crypt4gh_private_key_passphrase/anyOf/1"></a>*null*
 - <a id="properties/central_api_crypt4gh_public_key"></a>**`central_api_crypt4gh_public_key`** *(string, required)*: The Crypt4GH public key used by the Central API.
 - <a id="properties/central_api_url"></a>**`central_api_url`** *(string, format: uri, required)*: The base URL used to connect to to the GHGA Central API. Length must be between 1 and 2083 (inclusive).
 - <a id="properties/data_hub_signing_key"></a>**`data_hub_signing_key`** *(string, format: password, required and write-only)*: The Data Hub's private JWK for signing JWT auth tokens.

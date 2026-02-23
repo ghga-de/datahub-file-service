@@ -19,6 +19,7 @@ import pytest
 from hexkit.providers.s3.testutils import temp_file_object
 from pytest_httpx import HTTPXMock
 
+from dhfs.adapters.outbound.http import ConnectionFailedError
 from tests.fixtures.joint import JointFixture
 
 pytestmark = [
@@ -132,15 +133,7 @@ async def test_no_files_in_interrogation_bucket(
     assert "No files to clean up, exiting." in caplog.text
 
 
-@pytest.mark.httpx_mock(
-    assert_all_requests_were_expected=False,
-    should_mock=lambda request: request.url.path.startswith("/central"),
-)
-async def test_central_api_unreachable(
-    joint_fixture: JointFixture,
-    httpx_mock: HTTPXMock,
-    caplog,
-):
+async def test_central_api_unreachable(joint_fixture: JointFixture, caplog):
     """Make sure the S3Cleaner handles Central API connection failures."""
     # Pre-populate some objects in the interrogation bucket
     interrogation = joint_fixture.config.interrogation_bucket_id
@@ -153,7 +146,7 @@ async def test_central_api_unreachable(
             await joint_fixture.s3.populate_file_objects([file])
 
     # The cleaner should raise an exception when unable to reach the API
-    with caplog.at_level("ERROR"), pytest.raises(httpx.TimeoutException):
+    with caplog.at_level("ERROR"), pytest.raises(ConnectionFailedError):
         await joint_fixture.s3_cleaner.scan_and_clean()
 
     # Verify the error was logged

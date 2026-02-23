@@ -34,7 +34,10 @@ from pydantic import BaseModel, SecretBytes
 from pytest_httpx import HTTPXMock
 
 from dhfs.adapters.outbound.central import CentralClient
-from dhfs.adapters.outbound.http import get_configured_httpx_client
+from dhfs.adapters.outbound.http import (
+    ConnectionFailedError,
+    get_configured_httpx_client,
+)
 from dhfs.config import Config
 from dhfs.models import InterrogationReport
 from tests.fixtures.utils import CENTRAL_CRYPT4GH_PRIVATE_KEY, DHFS_JWK
@@ -86,15 +89,15 @@ async def configured_central_client(config: Config) -> AsyncGenerator[CentralCli
 
 
 async def test_central_api_unavailable(config: Config, central_client):
-    """Ensure an httpx.ConnectError gets raised if the central api is unavailable"""
+    """Ensure a ConnectionFailedError gets raised if the central api is unavailable"""
     # Test the different public methods exposed by the CentralClient
-    with pytest.raises(httpx.ConnectError):
+    with pytest.raises(ConnectionFailedError):
         await central_client.fetch_new_uploads()
 
-    with pytest.raises(httpx.ConnectError):
+    with pytest.raises(ConnectionFailedError):
         await central_client.get_removable_files(object_ids=["abc123"])
 
-    with pytest.raises(httpx.ConnectError):
+    with pytest.raises(ConnectionFailedError):
         report = make_interrogation_success_report(config.storage_alias)
         await central_client.submit_interrogation_report(report=report)
 
