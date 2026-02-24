@@ -438,6 +438,7 @@ class Interrogator(InterrogatorPort):
             secret=new_secret,
             encrypted_parts_md5=checksums.encrypted_md5,
             encrypted_parts_sha256=checksums.encrypted_sha256,
+            encrypted_size=file_upload.encrypted_size - file_upload.offset,
         )
 
     async def report_success(  # noqa: PLR0913
@@ -449,6 +450,7 @@ class Interrogator(InterrogatorPort):
         secret: SecretBytes,
         encrypted_parts_md5: list[bytes],
         encrypted_parts_sha256: list[bytes],
+        encrypted_size: int,
     ) -> None:
         """Submit an InterrogationReport for a successful interrogation.
 
@@ -465,6 +467,7 @@ class Interrogator(InterrogatorPort):
             secret=secret,
             encrypted_parts_md5=[h.hex() for h in encrypted_parts_md5],
             encrypted_parts_sha256=[h.hex() for h in encrypted_parts_sha256],
+            encrypted_size=encrypted_size,
         )
         try:
             await self._central_client.submit_interrogation_report(report=report)
