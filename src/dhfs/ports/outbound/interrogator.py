@@ -45,8 +45,12 @@ class InterrogatorPort(ABC):
     class InterrogationError(RuntimeError):
         """Base error class for errors that ultimately signal interrogation failure"""
 
+        reason: str = "There was a problem uploading the re-encrypted file."
+
     class FileEnvelopeDecryptionError(InterrogationError):
         """Raised when the file envelope can't be decrypted"""
+
+        reason: str = "Failed to decrypt the file envelope."
 
         def __init__(self, *, file_id: UUID4):
             msg = f"Failed to decrypt the Crypt4GH envelope for file {file_id}"
@@ -55,8 +59,12 @@ class InterrogatorPort(ABC):
     class DecryptionError(InterrogationError):
         """Raised when a file part can't be decrypted"""
 
+        reason: str = "Failed to decrypt the file content."
+
     class DecryptedChecksumMismatchError(InterrogationError):
         """Raised when the SHA256 checksums over the unencrypted content don't match."""
+
+        reason: str = "Decrypted content checksum did not match the expected value."
 
         def __init__(self, *, file_id: UUID4):
             msg = (
@@ -67,6 +75,8 @@ class InterrogatorPort(ABC):
 
     class EncryptedChecksumMismatchError(InterrogationError):
         """Raised when the MD5 checksums over the encrypted content don't match"""
+
+        reason: str = "Encrypted content checksum did not match the expected value."
 
         def __init__(self, *, file_id: UUID4):
             msg = (

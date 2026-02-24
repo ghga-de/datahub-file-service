@@ -84,7 +84,8 @@ class Interrogator(InterrogatorPort):
                     )
                 await self.interrogate_file(file)
             except self.InterrogationError as err:
-                await self.report_failure(file_id=file.id, reason=str(err))
+                reason = getattr(err, "reason", None) or "Unexpected error"
+                await self.report_failure(file_id=file.id, reason=reason)
 
     async def _fetch_original_secret(self, *, file_upload: FileUpload) -> SecretBytes:
         """Fetch the original file encryption secret.
