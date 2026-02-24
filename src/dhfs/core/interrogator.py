@@ -35,7 +35,7 @@ from pydantic import UUID4, SecretBytes
 from dhfs.config import Config
 from dhfs.constants import ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH
 from dhfs.core.checksums import Checksums
-from dhfs.models import FileUpload, InterrogationReport, PartRange
+from dhfs.core.models import FileUpload, InterrogationReport, PartRange
 from dhfs.ports.outbound.central import CentralClientPort
 from dhfs.ports.outbound.interrogator import InterrogatorPort
 from dhfs.ports.outbound.s3 import S3ClientPort

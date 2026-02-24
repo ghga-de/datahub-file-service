@@ -39,7 +39,7 @@ from dhfs.adapters.outbound.http import (
     get_configured_httpx_client,
 )
 from dhfs.config import Config
-from dhfs.models import InterrogationReport
+from dhfs.core.models import InterrogationReport
 from tests.fixtures.utils import CENTRAL_CRYPT4GH_PRIVATE_KEY, DHFS_JWK
 
 pytestmark = pytest.mark.asyncio()

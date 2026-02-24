@@ -19,7 +19,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import UUID4, SecretBytes
 
-from dhfs.models import FileUpload
+from dhfs.core.models import FileUpload
 
 
 class InterrogatorPort(ABC):
