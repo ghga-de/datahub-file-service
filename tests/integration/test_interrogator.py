@@ -183,7 +183,7 @@ async def test_report_failure(joint_fixture: JointFixture, httpx_mock: HTTPXMock
 
 
 async def test_api_down_during_report_submission(
-    joint_fixture: JointFixture, httpx_mock: HTTPXMock
+    joint_fixture: JointFixture, httpx_mock: HTTPXMock, monkeypatch
 ):
     """Test that a failed report submission does not raise and leaves the
     re-encrypted file in the interrogation bucket so it is not re-processed
@@ -233,6 +233,12 @@ async def test_api_down_during_report_submission(
     url_for_reports = f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports"
     httpx_mock.add_response(url=url_for_reports, status_code=503)
 
+    # Generate a known value for the reencrypted object ID so we can check it later
+    interrogation_object_id = uuid4()
+
+    # Monkeypatch the uuid4 function so it produces the above ID
+    monkeypatch.setattr("dhfs.core.interrogator.uuid4", lambda: interrogation_object_id)
+
     # Processing should complete without raising despite the failed submission
     await joint_fixture.interrogator.interrogate_new_files()
 
@@ -240,7 +246,7 @@ async def test_api_down_during_report_submission(
     s3_client: S3Client = joint_fixture.interrogator._s3_client  # type: ignore
     interrogation_files = await s3_client.list_files_in_interrogation_bucket()
 
-    assert len(interrogation_files) == 1, (
+    assert interrogation_files == [str(interrogation_object_id)], (
         "Re-encrypted file should remain in the interrogation bucket after a"
         " failed report submission"
     )
