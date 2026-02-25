@@ -24,7 +24,6 @@ from pytest_httpx import HTTPXMock
 
 from dhfs.adapters.outbound.s3 import S3Client
 from dhfs.core.models import FileUpload
-from dhfs.ports.outbound.central import CentralClientPort
 from dhfs.ports.outbound.interrogator import InterrogatorPort
 from tests.fixtures.joint import JointFixture
 from tests.fixtures.utils import (
@@ -186,8 +185,9 @@ async def test_report_failure(joint_fixture: JointFixture, httpx_mock: HTTPXMock
 async def test_api_down_during_report_submission(
     joint_fixture: JointFixture, httpx_mock: HTTPXMock
 ):
-    """Test to make sure the Interrogator class performs cleanup if the call to
-    the central API to submit the report fails.
+    """Test that a failed report submission does not raise and leaves the
+    re-encrypted file in the interrogation bucket so it is not re-processed
+    with a different secret on the next invocation.
     """
     # Create the inbox bucket
     config = joint_fixture.config
@@ -231,18 +231,18 @@ async def test_api_down_during_report_submission(
 
     # Mock the report submission endpoint to fail (simulating API down)
     url_for_reports = f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports"
-    httpx_mock.add_response(url=url_for_reports, status_code=500)
+    httpx_mock.add_response(url=url_for_reports, status_code=503)
 
-    # Attempt to process files - this should fail but handle cleanup
-    with pytest.raises(CentralClientPort.CentralAPIError):
-        await joint_fixture.interrogator.interrogate_new_files()
+    # Processing should complete without raising despite the failed submission
+    await joint_fixture.interrogator.interrogate_new_files()
 
-    # Verify that the interrogation bucket is empty (cleanup occurred)
+    # Verify the re-encrypted file is still in the interrogation bucket
     s3_client: S3Client = joint_fixture.interrogator._s3_client  # type: ignore
     interrogation_files = await s3_client.list_files_in_interrogation_bucket()
 
-    assert interrogation_files == [], (
-        "Interrogation bucket should be empty after failed report submission"
+    assert len(interrogation_files) == 1, (
+        "Re-encrypted file should remain in the interrogation bucket after a"
+        " failed report submission"
     )
 
 
