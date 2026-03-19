@@ -46,4 +46,5 @@ WORKDIR /home/appuser
 USER appuser
 ENV PYTHONUNBUFFERED=1
 
-ENTRYPOINT ["dhfs interrogate"]
+ENTRYPOINT ["dhfs"]
+CMD ["interrogate"]
