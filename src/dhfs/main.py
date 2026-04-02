@@ -30,6 +30,7 @@ async def run_interrogator(forever: bool = True):
     """Run the file interrogation and re-encryption process."""
     config = Config()  # type: ignore
     configure_logging(config=config)
+    log.info("Interrogator starting.")
     async with prepare_interrogator(config=config) as interrogator:
         if forever:
             while True:
@@ -61,6 +62,6 @@ async def perform_cleanup():
     """Run the S3 'interrogation' bucket cleanup routine."""
     config = Config()  # type: ignore
     configure_logging(config=config)
-
+    log.info("Cleanup routine starting.")
     async with prepare_interrogation_bucket_cleaner(config=config) as cleaner:
         await cleaner.scan_and_clean()
