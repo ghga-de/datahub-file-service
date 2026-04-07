@@ -41,7 +41,8 @@ async def run_interrogator(forever: bool = True):
                 except Exception:
                     log.warning(
                         "An unhandled exception occurred (see logs for more details)."
-                        + " Beginning fresh interrogation loop."
+                        + " Beginning fresh interrogation loop.",
+                        exc_info=True,
                     )
                 finally:
                     stop = now_utc_ms_prec()

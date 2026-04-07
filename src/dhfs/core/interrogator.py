@@ -281,7 +281,7 @@ class Interrogator(InterrogatorPort):
                 )
             except Exception as err:
                 log.error(
-                    "Failed confirmatory decryption of chunk number %i of file %s",
+                    "Failed confirmatory decryption of chunk number %i of file %s.",
                     part_no,
                     file_id,
                     exc_info=True,
@@ -307,7 +307,7 @@ class Interrogator(InterrogatorPort):
                         part_md5=checksums.encrypted_md5[-1],
                         part=part_to_upload,
                     )
-                    log.info(
+                    log.debug(
                         "Uploaded S3 part %i for file %s.",
                         uploaded_part_number,
                         file_id,
@@ -334,7 +334,7 @@ class Interrogator(InterrogatorPort):
                     part_md5=checksums.encrypted_md5[-1],
                     part=remaining_bytes,
                 )
-                log.info(
+                log.debug(
                     "Uploaded S3 part %i for file %s.",
                     uploaded_part_number,
                     file_id,
