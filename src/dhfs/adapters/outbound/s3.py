@@ -55,7 +55,7 @@ class S3Client(S3ClientPort):
 
     async def get_is_file_in_inbox(self, *, file: FileUpload) -> bool:
         """Return a bool indicating whether the file exists in the inbox"""
-        log.info(
+        log.debug(
             "Verifying that object %s exists in bucket named %s.",
             file.object_id,
             file.bucket_id,
@@ -64,13 +64,13 @@ class S3Client(S3ClientPort):
             bucket_id=file.bucket_id, object_id=str(file.object_id)
         )
         if exists:
-            log.info(
+            log.debug(
                 "Confirmed object %s exists in bucket %s.",
                 file.object_id,
                 file.bucket_id,
             )
         else:
-            log.warning(
+            log.debug(
                 "Object %s was not found in bucket %s.",
                 file.object_id,
                 file.bucket_id,
@@ -87,7 +87,7 @@ class S3Client(S3ClientPort):
             object_ids = await self._storage.list_all_object_ids(
                 bucket_id=self._interrogation_bucket_id
             )
-            log.info(
+            log.debug(
                 "Retrieved list of %i object IDs from bucket ID '%s'",
                 len(object_ids),
                 self._interrogation_bucket_id,
@@ -95,12 +95,11 @@ class S3Client(S3ClientPort):
             return sorted(object_ids)
         except ObjectStorageProtocol.BucketNotFoundError as err:
             bucket_error = self.BucketNotFoundError(
-                f"Failed to get list of files in the {self._interrogation_bucket_id}"
-                + " bucket because the bucket doesn't exist."
+                f"Failed to get list of files in the '{self._interrogation_bucket_id}'"
+                + " bucket because no such bucket exists."
             )
-            log.critical(
+            log.debug(
                 bucket_error,
-                exc_info=True,
                 extra={"bucket_id": self._interrogation_bucket_id},
             )
             raise bucket_error from err
@@ -123,20 +122,20 @@ class S3Client(S3ClientPort):
                 f"Cannot get download URL for file {object_id} because"
                 + f" the bucket {bucket_id} does not exist."
             )
-            log.critical(bucket_error, exc_info=True)
+            log.debug(bucket_error)
             raise bucket_error from err
         except ObjectStorageProtocol.ObjectNotFoundError as err:
             object_missing_error = self.ObjectNotFoundError(
                 f"Cannot get download URL for file {object_id} because it doesn't exist."
             )
-            log.error(object_missing_error, exc_info=True)
+            log.debug(object_missing_error)
             raise object_missing_error from err
         except Exception as err:
             error = self.DownloadError(
                 "An unexpected error occurred while trying to generate a download URL"
                 + f" for file {object_id} in bucket {bucket_id}."
             )
-            log.error(error, exc_info=True)
+            log.debug(error)
             raise error from err
 
     async def fetch_file_content_range(
@@ -183,7 +182,9 @@ class S3Client(S3ClientPort):
             return response.content
 
         if status_code == 403 and not bust_cache:
-            log.info("Download URL for %s is stale - generating a fresh one", object_id)
+            log.debug(
+                "Download URL for %s is stale - generating a fresh one", object_id
+            )
             return await self.fetch_file_content_range(
                 bucket_id=bucket_id,
                 object_id=object_id,
@@ -196,7 +197,7 @@ class S3Client(S3ClientPort):
             f"Received a {status_code} error when trying to download file {object_id}"
             + f" from bucket {bucket_id}."
         )
-        log.error(
+        log.debug(
             error,
             extra={
                 "response_detail": response.content.decode("ascii", errors="ignore")
@@ -221,7 +222,7 @@ class S3Client(S3ClientPort):
 
         if object_exists:
             # Delete and start the process over again
-            log.warning(
+            log.debug(
                 "File %s already exists in interrogation bucket -- deleting"
                 + " before beginning interrogation.",
                 object_id,
@@ -231,7 +232,7 @@ class S3Client(S3ClientPort):
             )
 
         try:
-            log.info(
+            log.debug(
                 "Creating new S3 multipart upload for object ID %s in bucket ID %s.",
                 object_id,
                 self._interrogation_bucket_id,
@@ -239,7 +240,7 @@ class S3Client(S3ClientPort):
             upload_id = await self._storage.init_multipart_upload(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             )
-            log.info(
+            log.debug(
                 "Created multipart upload ID %s for file ID %s.", upload_id, object_id
             )
             return upload_id
@@ -248,7 +249,7 @@ class S3Client(S3ClientPort):
                 f"Cannot create a multipart upload for file {object_id} because an"
                 + " ongoing upload for the same object already exists."
             )
-            log.error(upload_exists_error, exc_info=True)
+            log.debug(upload_exists_error)
             raise upload_exists_error from err
         except ObjectStorageProtocol.BucketNotFoundError as err:
             # This is logged as critical because the bucket should definitely exist
@@ -256,14 +257,14 @@ class S3Client(S3ClientPort):
                 f"Cannot create a multipart upload for file {object_id} because"
                 + f" the bucket {self._interrogation_bucket_id} does not exist."
             )
-            log.critical(bucket_error, exc_info=True)
+            log.debug(bucket_error)
             raise bucket_error from err
         except Exception as err:
             error = self.UploadInitError(
                 "An unexpected error occurred trying to initiate a multipart upload"
                 + f" for file {object_id} in bucket {self._interrogation_bucket_id}."
             )
-            log.error(error, exc_info=True)
+            log.debug(error)
             raise error from err
 
     async def _get_part_upload_url(
@@ -289,11 +290,10 @@ class S3Client(S3ClientPort):
             # This is logged as critical because the bucket should definitely exist
             bucket_error = self.BucketNotFoundError(
                 f"Failed to get part upload URL for upload {upload_id} because the"
-                + f" interrogation bucket {self._interrogation_bucket_id} does not exist."
+                + f" bucket '{self._interrogation_bucket_id}' does not exist."
             )
-            log.critical(
+            log.debug(
                 bucket_error,
-                exc_info=True,
                 extra={
                     "upload_id": upload_id,
                     "object_id": object_id,
@@ -306,9 +306,8 @@ class S3Client(S3ClientPort):
                 f"Failed to get part upload URL for upload {upload_id} because the"
                 + " upload does not exist."
             )
-            log.critical(
+            log.debug(
                 error,
-                exc_info=True,
                 extra={
                     "upload_id": upload_id,
                     "object_id": object_id,
@@ -353,7 +352,7 @@ class S3Client(S3ClientPort):
             if status_code == 400:
                 # A bad MD5 means that uploading the re-encrypted file has failed
                 md5_error = self.BadPartMD5Error(part_no=part_no, object_id=object_id)
-                log.error(md5_error)
+                log.debug(md5_error)
                 raise md5_error
             else:
                 detail = response.content.decode()
@@ -361,7 +360,7 @@ class S3Client(S3ClientPort):
                     f"Failed to upload part {part_no} for file {object_id}. Status"
                     + f" code is {response.status_code}. Detail: {detail}"
                 )
-                log.error(upload_error)
+                log.debug(upload_error)
                 raise upload_error
 
     async def complete_upload(
@@ -407,7 +406,7 @@ class S3Client(S3ClientPort):
                 f"Couldn't complete upload {upload_id} for file {object_id} because"
                 + f" the bucket {self._interrogation_bucket_id} does not exist."
             )
-            log.critical(bucket_error, exc_info=True, extra=extra)
+            log.debug(bucket_error, extra=extra)
             raise bucket_error from err
         except ObjectStorageProtocol.MultiPartUploadConfirmError as err:
             # In this case, the Interrogator needs to know that interrogation has failed
@@ -415,7 +414,7 @@ class S3Client(S3ClientPort):
             part_count_error = self.PartCountMismatchError(
                 upload_id=upload_id, object_id=object_id, part_count=part_count
             )
-            log.error(part_count_error, exc_info=True, extra=extra)
+            log.debug(part_count_error, extra=extra)
             raise part_count_error from err
         except ObjectStorageProtocol.MultiPartUploadNotFoundError as err:
             # This isn't as critical as the BucketNotFoundError as it's not a config issue.
@@ -426,7 +425,7 @@ class S3Client(S3ClientPort):
                     f"Couldn't complete upload {upload_id} for file {object_id} because"
                     + " the upload doesn't exist. No cleanup required.",
                 )
-                log.error(error, exc_info=True, extra=extra)
+                log.debug(error, extra=extra)
                 raise error from err
             # If the object exists, then the UploadNotFoundError must have occurred
             #  due to some timing hiccup -- the file is there so we can squash the error
@@ -443,7 +442,7 @@ class S3Client(S3ClientPort):
                 + f" for file {object_id} in the interrogation bucket"
                 + f" ({self._interrogation_bucket_id})."
             )
-            log.error(error, exc_info=True, extra=extra)
+            log.debug(error, extra=extra)
             raise error from err
 
     async def abort_upload(self, *, upload_id: str, object_id: str) -> None:
@@ -465,14 +464,16 @@ class S3Client(S3ClientPort):
                 bucket_id=self._interrogation_bucket_id,
                 object_id=object_id,
             )
-            log.info("Aborted multipart upload %s for object %s.", upload_id, object_id)
+            log.debug(
+                "Aborted multipart upload %s for object %s.", upload_id, object_id
+            )
         except ObjectStorageProtocol.BucketNotFoundError as err:
             # This is logged as critical because the bucket should definitely exist
             bucket_error = self.BucketNotFoundError(
                 f"Couldn't abort upload {upload_id} for file {object_id} because"
                 + f" the bucket {self._interrogation_bucket_id} does not exist."
             )
-            log.critical(bucket_error, exc_info=True, extra=extra)
+            log.debug(bucket_error, extra=extra)
             raise bucket_error from err
         except ObjectStorageProtocol.MultiPartUploadNotFoundError:
             # If not found, log warning and assume it was already aborted.
@@ -486,9 +487,8 @@ class S3Client(S3ClientPort):
                 f"Failed to abort multipart upload {upload_id} for file {object_id}"
                 + f" in the interrogation bucket ({self._interrogation_bucket_id})."
             )
-            log.error(
+            log.debug(
                 error,
-                exc_info=True,
                 extra=extra,
             )
             raise error from err
@@ -505,7 +505,7 @@ class S3Client(S3ClientPort):
                 bucket_id=self._interrogation_bucket_id,
                 object_id=object_id,
             )
-            log.info(
+            log.debug(
                 "Successfully removed %s from bucket ID %s",
                 object_id,
                 self._interrogation_bucket_id,
@@ -517,15 +517,14 @@ class S3Client(S3ClientPort):
                 f"The bucket {bucket_id} was not found while trying to remove"
                 + f" file {object_id}. This error should not have occurred."
             )
-            log.critical(
+            log.debug(
                 bucket_error,
-                exc_info=True,
                 extra={"bucket_id": bucket_id, "object_id": object_id},
             )
             raise bucket_error from err
         except ObjectStorageProtocol.ObjectNotFoundError:
             # If not found, assume the object was already deleted but log a warning
-            log.warning(
+            log.debug(
                 "Tried to delete file %s from bucket %s, but it's already deleted",
                 object_id,
                 self._interrogation_bucket_id,
@@ -534,9 +533,8 @@ class S3Client(S3ClientPort):
             error = self.S3CleanupError(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             )
-            log.error(
+            log.debug(
                 error,
-                exc_info=True,
                 extra={
                     "bucket_id": self._interrogation_bucket_id,
                     "object_id": object_id,

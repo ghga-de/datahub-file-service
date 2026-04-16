@@ -80,7 +80,7 @@ class Config(
     def enforce_client_reraise_from_retry_error_false(cls, value: bool) -> bool:
         """Enforce the False setting for client_reraise_from_retry_error"""
         if value:
-            log.info(
+            log.debug(
                 "Forcing config value `client_reraise_from_retry_error` to False, as"
                 + " that is the only supported value for this application."
             )

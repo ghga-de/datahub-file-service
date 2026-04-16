@@ -50,17 +50,13 @@ class S3Cleaner(S3CleanerPort):
 
         Can also raise underlying errors from the S3 client or the CentralClient.
         """
-        log.info("Starting interrogation bucket cleanup scan.")
+        log.debug("Starting interrogation bucket cleanup scan.")
 
-        # TODO: Incomplete MPU cleanup - hexkit currently lacks a 'list ongoing MPUs' method
+        # TODO: Finish MPU cleanup - hexkit now has the abilities needed
         try:
             object_ids = await self._s3_client.list_files_in_interrogation_bucket()
         except Exception as exc:
-            log.error(
-                "Failed to list files in interrogation bucket: %s.",
-                exc,
-                exc_info=True,
-            )
+            log.error("Something went wrong with cleanup: %s", exc, exc_info=True)
             raise
 
         if not object_ids:
@@ -76,7 +72,7 @@ class S3Cleaner(S3CleanerPort):
             )
         except Exception as exc:
             log.error(
-                "Failed to fetch removable files from Central API: %s.",
+                "Something went wrong with cleanup: %s.",
                 exc,
                 exc_info=True,
             )

@@ -22,15 +22,31 @@ from hexkit.utils import now_utc_ms_prec
 
 from dhfs import __version__
 from dhfs.config import Config
+from dhfs.constants import SQUASHED_LOGGERS
 from dhfs.inject import prepare_interrogation_bucket_cleaner, prepare_interrogator
 
 log = logging.getLogger(__name__)
 
 
+def _configure_logging(config: Config):
+    """Silence log messages from libraries and set up structured logging.
+
+    This will silence logs from blacklisted libraries (unless 'critical') when the
+    log level is configured to anything above DEBUG. When log level is DEBUG for DHFS,
+    library logs with level INFO or higher will be emitted. DEBUG-level library logs
+    will still be suppressed to avoid too much noise.
+    """
+    configure_logging(config=config)
+    for logger in SQUASHED_LOGGERS:
+        logging.getLogger(logger).setLevel(
+            logging.INFO if config.log_level == "DEBUG" else logging.CRITICAL
+        )
+
+
 async def run_interrogator(forever: bool = True):
     """Run the file interrogation and re-encryption process."""
     config = Config()  # type: ignore
-    configure_logging(config=config)
+    _configure_logging(config=config)
     log.info("DHFS version %s starting.", __version__)
     async with prepare_interrogator(config=config) as interrogator:
         if forever:
@@ -40,9 +56,10 @@ async def run_interrogator(forever: bool = True):
                     await interrogator.interrogate_new_files()
                 except Exception:
                     log.warning(
-                        "An unhandled exception occurred (see logs for more details)."
-                        + " Beginning fresh interrogation loop.",
-                        exc_info=True,
+                        "An unhandled exception caused the current round of file"
+                        + " processing to fail. If this keeps occurring, run"
+                        + " with log_level set to DEBUG.",
+                        exc_info=config.log_level == "DEBUG",
                     )
                 finally:
                     stop = now_utc_ms_prec()
@@ -51,7 +68,9 @@ async def run_interrogator(forever: bool = True):
                     ) < config.min_run_interval_seconds:
                         sleep_duration = config.min_run_interval_seconds - timediff
                         log.info(
-                            "Waiting %i seconds because minimum run interval is set to %i.",
+                            "Waiting %i seconds before beginning the next round of file"
+                            + " processing because the minimum run interval is set to"
+                            + " %i seconds.",
                             sleep_duration,
                             config.min_run_interval_seconds,
                         )
@@ -63,7 +82,7 @@ async def run_interrogator(forever: bool = True):
 async def perform_cleanup():
     """Run the S3 'interrogation' bucket cleanup routine."""
     config = Config()  # type: ignore
-    configure_logging(config=config)
+    _configure_logging(config=config)
     log.info("Cleanup routine starting. Current DHFS version is %s.", __version__)
     async with prepare_interrogation_bucket_cleaner(config=config) as cleaner:
         await cleaner.scan_and_clean()

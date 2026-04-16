@@ -119,9 +119,7 @@ class CentralClient(CentralClientPort):
             ):
                 raise TypeError("Response did not contain a list of strings")
         except (JSONDecodeError, TypeError) as err:
-            error = self.ResponseFormatError(str(response.url))
-            log.error(error, exc_info=True)
-            raise error from err
+            raise self.ResponseFormatError(str(response.url)) from err
         return body
 
     def _response_to_file_upload_list(
@@ -136,9 +134,7 @@ class CentralClient(CentralClientPort):
             body = response.json()
             return list(map(models.FileUpload.model_validate, body))
         except (JSONDecodeError, ValidationError, TypeError) as err:
-            error = self.ResponseFormatError(str(response.url))
-            log.error(error, exc_info=True)
-            raise error from err
+            raise self.ResponseFormatError(str(response.url)) from err
 
     async def fetch_new_uploads(self) -> list[models.FileUpload]:
         """Fetch a list of files that need to be interrogated and re-encrypted.
@@ -147,7 +143,7 @@ class CentralClient(CentralClientPort):
         - CentralAPIError if the request to the central API fails.
         """
         url = f"{self._base_url}/storages/{self._storage_alias}/uploads"
-        log.info("Fetching new uploads from %s.", url)
+        log.debug("Fetching new uploads from %s.", url)
         try:
             response = await self._httpx_client.get(
                 url=url, headers=self._auth_headers()
@@ -158,9 +154,7 @@ class CentralClient(CentralClientPort):
 
         if (status_code := response.status_code) != 200:
             self._log_if_upgrade_required(status_code)
-            error = self.CentralAPIError(url=url, status_code=status_code)
-            log.error(error)
-            raise error
+            raise self.CentralAPIError(url=url, status_code=status_code)
 
         return self._response_to_file_upload_list(response)
 
@@ -174,7 +168,7 @@ class CentralClient(CentralClientPort):
         - CentralAPIError if the request to the central API fails.
         """
         url = f"{self._base_url}/storages/{self._storage_alias}/uploads/can_remove"
-        log.info(
+        log.debug(
             "Querying GHGA Central API about removability of %i files (URL is %s).",
             len(object_ids),
             url,
@@ -189,12 +183,10 @@ class CentralClient(CentralClientPort):
 
         if (status_code := response.status_code) != 200:
             self._log_if_upgrade_required(status_code)
-            error = self.CentralAPIError(url=url, status_code=status_code)
-            log.error(error)
-            raise error
+            raise self.CentralAPIError(url=url, status_code=status_code)
 
         removable = self._response_to_object_id_list(response)
-        log.info("Central API indicated %i file(s) can be removed.", len(removable))
+        log.debug("Central API indicated %i file(s) can be removed.", len(removable))
         return removable
 
     async def submit_interrogation_report(
@@ -207,7 +199,7 @@ class CentralClient(CentralClientPort):
         """
         body = report.model_dump(mode="json")
         url = f"{self._base_url}/storages/{self._storage_alias}/interrogation-reports"
-        log.info(
+        log.debug(
             "Submitting %s interrogation report for file %s to %s.",
             "success" if report.passed else "failure",
             report.file_id,
@@ -230,10 +222,8 @@ class CentralClient(CentralClientPort):
 
         if (status_code := response.status_code) != 201:
             self._log_if_upgrade_required(status_code)
-            error = self.CentralAPIError(url=url, status_code=status_code)
-            log.error(error)
-            raise error
+            raise self.CentralAPIError(url=url, status_code=status_code)
 
         log.info(
-            "Successfully submitted interrogation report for file %s.", report.file_id
+            "Successfully submitted re-encryption report for file %s.", report.file_id
         )

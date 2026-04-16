@@ -122,7 +122,7 @@ class FileUpload(BaseModel):
             adjusted_part_size = segments_per_part * crypt4gh.lib.CIPHER_SEGMENT_SIZE
 
         if adjusted_part_size != self.part_size:
-            log.info(
+            log.debug(
                 "Adjusted part size from %d to %d bytes to align with Crypt4GH segment"
                 + " boundaries for file %s",
                 self.part_size,
