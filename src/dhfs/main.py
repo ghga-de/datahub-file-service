@@ -85,4 +85,11 @@ async def perform_cleanup():
     _configure_logging(config=config)
     log.info("Cleanup routine starting. Current DHFS version is %s.", __version__)
     async with prepare_interrogation_bucket_cleaner(config=config) as cleaner:
-        await cleaner.scan_and_clean()
+        try:
+            await cleaner.scan_and_clean()
+        except Exception as exc:
+            log.error(
+                "Something went wrong with cleanup: %s",
+                exc,
+                exc_info=config.log_level == "DEBUG",
+            )
