@@ -22,7 +22,6 @@ from hexkit.utils import now_utc_ms_prec
 
 from dhfs import __version__
 from dhfs.config import Config
-from dhfs.constants import SQUASHED_LOGGERS
 from dhfs.inject import prepare_interrogation_bucket_cleaner, prepare_interrogator
 
 log = logging.getLogger(__name__)
@@ -37,10 +36,8 @@ def _configure_logging(config: Config):
     will still be suppressed to avoid too much noise.
     """
     configure_logging(config=config)
-    for logger in SQUASHED_LOGGERS:
-        logging.getLogger(logger).setLevel(
-            logging.INFO if config.log_level == "DEBUG" else logging.CRITICAL
-        )
+    for logger in config.loggers_to_suppress:
+        logging.getLogger(logger).setLevel(config.library_log_level)
 
 
 async def run_interrogator(forever: bool = True):

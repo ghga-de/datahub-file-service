@@ -162,7 +162,10 @@ The service requires the following configuration parameters:
 
 - <a id="properties/log_traceback"></a>**`log_traceback`** *(boolean)*: Whether to include exception tracebacks in log messages. Default: `true`.
 - <a id="properties/min_run_interval_seconds"></a>**`min_run_interval_seconds`** *(integer)*: The minimum number of seconds to wait before asking the CentralAPI about new files for interrogation. Default: `60`.
-- <a id="properties/interrogation_bucket_id"></a>**`interrogation_bucket_id`** *(string)*: The name for the S3 'interrogation' bucket. Default: `"interrogation"`.
+- <a id="properties/interrogation_bucket_id"></a>**`interrogation_bucket_id`** *(string)*: The name for the S3 'interrogation' bucket, which houses re-encrypted files until they are copied to permanent storage by IFRS. Default: `"interrogation"`.
+- <a id="properties/library_log_level"></a>**`library_log_level`** *(string)*: The log level to use for libraries. This option can be used in tandem with log_level to view DEBUG logs from DHFS without the noise of third-party libraries. Will be overridden by log_level if log_level is higher. By default, this is set to CRITICAL, which will suppress all logs with a log level lower than CRITICAL. Must be one of: "CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG", or "TRACE". Default: `"CRITICAL"`.
+- <a id="properties/loggers_to_suppress"></a>**`loggers_to_suppress`** *(array)*: The list of logger names to target with library_log_level. Default: `["httpx", "crypt4gh", "hexkit", "ghga_service_commons", "boto3", "botocore", "httpcore", "urllib3"]`.
+  - <a id="properties/loggers_to_suppress/items"></a>**Items** *(string)*
 
 ### Usage:
 
