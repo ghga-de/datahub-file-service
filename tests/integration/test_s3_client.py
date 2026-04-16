@@ -154,7 +154,7 @@ async def test_init_interrogation_bucket_upload(
 
     # Now init the upload - should delete existing object and log a warning
     caplog.clear()
-    with caplog.at_level("WARNING"):
+    with caplog.at_level("DEBUG"):
         upload_id = await s3_client.init_interrogation_bucket_upload(
             object_id=object_id
         )

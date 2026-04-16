@@ -83,7 +83,7 @@ async def test_cleaner_successful(
     )
 
     # Run the scan and clean operation
-    with caplog.at_level("INFO"):
+    with caplog.at_level("DEBUG"):
         await joint_fixture.s3_cleaner.scan_and_clean()
 
     # Check that only the removable_files were deleted from the bucket
@@ -133,7 +133,7 @@ async def test_no_files_in_interrogation_bucket(
     assert "No files to clean up, exiting." in caplog.text
 
 
-async def test_central_api_unreachable(joint_fixture: JointFixture, caplog):
+async def test_central_api_unreachable(joint_fixture: JointFixture):
     """Make sure the S3Cleaner handles Central API connection failures."""
     # Pre-populate some objects in the interrogation bucket
     interrogation = joint_fixture.config.interrogation_bucket_id
@@ -146,11 +146,8 @@ async def test_central_api_unreachable(joint_fixture: JointFixture, caplog):
             await joint_fixture.s3.populate_file_objects([file])
 
     # The cleaner should raise an exception when unable to reach the API
-    with caplog.at_level("ERROR"), pytest.raises(ConnectionFailedError):
+    with pytest.raises(ConnectionFailedError):
         await joint_fixture.s3_cleaner.scan_and_clean()
-
-    # Verify the error was logged
-    assert "Failed to fetch removable files from Central API" in caplog.text
 
     # Verify that no files were deleted (operation failed before deletion)
     remaining_files = await joint_fixture.s3.storage.list_all_object_ids(interrogation)

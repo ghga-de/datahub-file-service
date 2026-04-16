@@ -41,4 +41,8 @@ SQUASHED_LOGGERS = [
     "crypt4gh",
     "hexkit",
     "ghga_service_commons",
+    "boto3",
+    "botocore",
+    "httpcore",
+    "urllib3",
 ]
