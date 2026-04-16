@@ -278,7 +278,7 @@
       "title": "Library Log Level",
       "type": "string"
     },
-    "loggers_to_suppress": {
+    "library_logger_names": {
       "default": [
         "httpx",
         "crypt4gh",
@@ -293,7 +293,7 @@
       "items": {
         "type": "string"
       },
-      "title": "Loggers To Suppress",
+      "title": "Library Logger Names",
       "type": "array"
     }
   },

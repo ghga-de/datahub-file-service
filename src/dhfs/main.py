@@ -36,7 +36,7 @@ def _configure_logging(config: Config):
     will still be suppressed to avoid too much noise.
     """
     configure_logging(config=config)
-    for logger in config.loggers_to_suppress:
+    for logger in config.library_logger_names:
         logging.getLogger(logger).setLevel(config.library_log_level)
 
 

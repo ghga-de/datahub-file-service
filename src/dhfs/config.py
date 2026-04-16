@@ -90,7 +90,7 @@ class Config(
         ),
     )
 
-    loggers_to_suppress: list[str] = Field(
+    library_logger_names: list[str] = Field(
         default=SQUASHED_LOGGERS,
         description="The list of logger names to target with library_log_level.",
     )
