@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+# Get the location of this setup script
+get_script_dir()
+{
+    local SOURCE_PATH="${BASH_SOURCE[0]}"
+    local SYMLINK_DIR
+    local SCRIPT_DIR
+    # Resolve symlinks recursively
+    while [ -L "$SOURCE_PATH" ]; do
+        # Get symlink directory
+        SYMLINK_DIR="$( cd -P "$( dirname "$SOURCE_PATH" )" >/dev/null 2>&1 && pwd )"
+        # Resolve symlink target (relative or absolute)
+        SOURCE_PATH="$(readlink "$SOURCE_PATH")"
+        # Check if candidate path is relative or absolute
+        if [[ $SOURCE_PATH != /* ]]; then
+            # Candidate path is relative, resolve to full path
+            SOURCE_PATH=$SYMLINK_DIR/$SOURCE_PATH
+        fi
+    done
+    # Get final script directory path from fully resolved source path
+    SCRIPT_DIR="$(cd -P "$( dirname "$SOURCE_PATH" )" >/dev/null 2>&1 && pwd)"
+    echo "$SCRIPT_DIR"
+}
+
+SCRIPTDIR=$(get_script_dir)
+
+# Overwrite hexkit.log in order to color-code output
+echo "📃 Overwrote hexkit.log module to color-code and abbreviate log lines"
+cat $SCRIPTDIR/ref/hexkit_log.py > $(python -m site --user-site)/hexkit/log.py
+
+# Write test crypt4gh keys to root dir
+cp $SCRIPTDIR/ref/key.pub /workspace/
+cp $SCRIPTDIR/ref/key.sec /workspace/
+
+# Install convenience VS Code Extension for creating named, color-coded terminals
+code --install-extension $SCRIPTDIR/ref/ext/mock-fis-terminals-0.0.1.vsix > /dev/null
+echo "✅ Extension installed: Ctrl+Shift+P --> \"DHFS: Create Mock FIS Terminals\""
