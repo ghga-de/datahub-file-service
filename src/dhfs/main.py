@@ -16,12 +16,14 @@
 
 import logging
 from asyncio import sleep
+from contextlib import suppress
 
 from hexkit.log import configure_logging
 from hexkit.utils import now_utc_ms_prec
 
 from dhfs import __version__
 from dhfs.config import Config
+from dhfs.core.interrogator import InterrogatorPort
 from dhfs.inject import prepare_interrogation_bucket_cleaner, prepare_interrogator
 
 log = logging.getLogger(__name__)
@@ -50,14 +52,19 @@ async def run_interrogator(forever: bool = True):
             while True:
                 try:
                     start = now_utc_ms_prec()
-                    await interrogator.interrogate_new_files()
+                    with suppress(
+                        InterrogatorPort.CantCompleteError,
+                        InterrogatorPort.InterrogationError,
+                    ):
+                        await interrogator.interrogate_new_files()
                 except Exception:
                     log.warning(
                         "An unhandled exception caused the current round of file"
                         + " processing to fail. If this keeps occurring, run"
                         + " with log_level set to DEBUG.",
-                        exc_info=config.log_level == "DEBUG",
                     )
+                    if config.log_level == "DEBUG":
+                        raise
                 finally:
                     stop = now_utc_ms_prec()
                     if (
@@ -82,11 +89,4 @@ async def perform_cleanup():
     _configure_logging(config=config)
     log.info("Cleanup routine starting. Current DHFS version is %s.", __version__)
     async with prepare_interrogation_bucket_cleaner(config=config) as cleaner:
-        try:
-            await cleaner.scan_and_clean()
-        except Exception as exc:
-            log.error(
-                "Something went wrong with cleanup: %s",
-                exc,
-                exc_info=config.log_level == "DEBUG",
-            )
+        await cleaner.scan_and_clean()

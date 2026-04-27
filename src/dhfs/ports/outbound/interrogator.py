@@ -50,11 +50,7 @@ class InterrogatorPort(ABC):
     class FileEnvelopeDecryptionError(InterrogationError):
         """Raised when the file envelope can't be decrypted"""
 
-        reason: str = "Failed to decrypt the file envelope."
-
-        def __init__(self, *, file_id: UUID4):
-            msg = f"Failed to decrypt the Crypt4GH envelope for file {file_id}"
-            super().__init__(msg)
+        reason: str = "Could not decrypt the file envelope."
 
     class DecryptionError(InterrogationError):
         """Raised when a file part can't be decrypted"""
@@ -64,26 +60,15 @@ class InterrogatorPort(ABC):
     class DecryptedChecksumMismatchError(InterrogationError):
         """Raised when the SHA256 checksums over the unencrypted content don't match."""
 
-        reason: str = "Decrypted content checksum did not match the expected value."
-
-        def __init__(self, *, file_id: UUID4):
-            msg = (
-                f"The SHA-256 checksum over unencrypted content for file {file_id}"
-                + " doesn't match the value submitted with the file"
-            )
-            super().__init__(msg)
+        reason: str = (
+            "The SHA-256 checksum over unencrypted content does not match"
+            + " the value submitted with the file."
+        )
 
     class EncryptedChecksumMismatchError(InterrogationError):
         """Raised when the MD5 checksums over the encrypted content don't match"""
 
         reason: str = "Encrypted content checksum did not match the expected value."
-
-        def __init__(self, *, file_id: UUID4):
-            msg = (
-                f"The S3 ETag (MD5 checksum) for file {file_id} doesn't match the"
-                + " locally calculated value."
-            )
-            super().__init__(msg)
 
     @abstractmethod
     async def interrogate_new_files(self) -> None:

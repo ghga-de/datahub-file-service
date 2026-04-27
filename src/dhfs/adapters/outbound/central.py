@@ -200,10 +200,9 @@ class CentralClient(CentralClientPort):
         body = report.model_dump(mode="json")
         url = f"{self._base_url}/storages/{self._storage_alias}/interrogation-reports"
         log.debug(
-            "Submitting %s interrogation report for file %s to %s.",
-            "success" if report.passed else "failure",
+            "File %s: Informing GHGA Central about results.",
             report.file_id,
-            url,
+            extra={"file_id": report.file_id, "passed": report.passed, "url": url},
         )
 
         # Encrypt secret (core class doesn't know central api public key)
@@ -224,6 +223,13 @@ class CentralClient(CentralClientPort):
             self._log_if_upgrade_required(status_code)
             raise self.CentralAPIError(url=url, status_code=status_code)
 
+        msg = (
+            "was successfully re-encrypted"
+            if report.passed
+            else "could not be re-encrypted"
+        )
         log.info(
-            "Successfully submitted re-encryption report for file %s.", report.file_id
+            "File %s: Submitted report to GHGA Central indicating that the file %s.",
+            report.file_id,
+            msg,
         )

@@ -49,10 +49,12 @@ class S3Cleaner(S3CleanerPort):
 
         Can also raise underlying errors from the S3 client or the CentralClient.
         """
-        log.debug("Starting interrogation bucket cleanup scan.")
-
         # TODO: Finish MPU cleanup - hexkit now has the abilities needed
-        object_ids = await self._s3_client.list_files_in_interrogation_bucket()
+        try:
+            object_ids = await self._s3_client.list_files_in_interrogation_bucket()
+        except Exception as err:
+            log.error("Failed to fetch current object list: %s", err)
+            return
 
         if not object_ids:
             log.info("No files to clean up, exiting.")
@@ -61,13 +63,13 @@ class S3Cleaner(S3CleanerPort):
         # No need to convert obj IDs to UUID here because they are serialized to string
         #  in the outbound request, and S3 expects strings. In short, we don't need the
         #  UUID properties, even for validation.
-        removable_objects = await self._central_client.get_removable_files(
-            object_ids=object_ids
-        )
-
-        log.debug(
-            "Central API indicates %d file(s) can be removed.", len(removable_objects)
-        )
+        try:
+            removable_objects = await self._central_client.get_removable_files(
+                object_ids=object_ids
+            )
+        except Exception as err:
+            log.error("Failed to determine which objects can be removed: %s", err)
+            return
 
         if not removable_objects:
             log.info("No files marked for removal, exiting.")
@@ -81,18 +83,15 @@ class S3Cleaner(S3CleanerPort):
             try:
                 await self._s3_client.remove_file(object_id=object_id)
             except Exception as exc:
-                log.debug("Failed to delete file %s: %s", object_id, exc)
+                log.error("Cleanup failed for object %s: %s", object_id, exc)
                 failed_deletions.append(object_id)
             else:
                 deleted_count += 1
                 log.debug("Successfully deleted file: %s", object_id)
 
         log.info(
-            "Cleanup complete: %d file(s) deleted successfully, %d failed.",
+            "Cleanup completed%s: %d file(s) deleted successfully, %d failed.",
+            " with errors" if failed_deletions else "",
             deleted_count,
             len(failed_deletions),
         )
-
-        if failed_deletions:
-            log.debug("Failed to delete the following files: %s", failed_deletions)
-            raise self.S3CleanupError(failed_deletion_count=len(failed_deletions))

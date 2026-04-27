@@ -123,11 +123,12 @@ class FileUpload(BaseModel):
 
         if adjusted_part_size != self.part_size:
             log.debug(
-                "Adjusted part size from %d to %d bytes to align with Crypt4GH segment"
-                + " boundaries for file %s",
+                "File %s: Adjusted part size %s from %d to %d bytes to align with Crypt4GH"
+                + " segment boundaries.",
+                self.id,
+                "down" if adjusted_part_size < self.part_size else "up",
                 self.part_size,
                 adjusted_part_size,
-                self.id,
             )
         return adjusted_part_size
 
