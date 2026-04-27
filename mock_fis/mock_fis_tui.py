@@ -36,6 +36,7 @@ CHAOS_CORRUPT = os.getenv("MOCK_FIS_CHAOS_CORRUPT", "true").lower() in (
     "yes",
 )
 CHAOS_PROBABILITY = float(os.getenv("MOCK_FIS_CHAOS_PROBABILITY", "0.5"))
+CORRUPT_PROBABILITY = float(os.getenv("MOCK_FIS_CORRUPT_PROBABILITY", "0.5"))
 AUTO_ARCHIVE = os.getenv("MOCK_FIS_AUTO_ARCHIVE", "false").lower() in (
     "1",
     "true",
@@ -124,6 +125,15 @@ def _colorize_message(text: Text, msg: str) -> None:
         text.append(msg, style="#b0c4d8")
 
 
+def _fmt_cfg(cfg: dict) -> str:
+    """Format a config response dict as a compact log line."""
+    return (
+        f"chaos={cfg['chaos']}  corrupt={cfg['chaos_corrupt']}"
+        f"  api_prob={cfg['chaos_probability']:.0%}"
+        f"  corrupt_prob={cfg['corrupt_probability']:.0%}"
+    )
+
+
 # ── CSS ───────────────────────────────────────────────────────────────────────
 
 APP_CSS = """
@@ -161,17 +171,11 @@ Footer > .footer--key {
     min-height: 14;
 }
 
-/* ── Left column (settings + chaos stacked) ── */
-#left-col {
-    width: 44;
-    height: auto;
-}
-
 /* ── Settings panel ── */
 SettingsPanel {
     border: heavy #005577;
     background: #08081e;
-    width: 100%;
+    width: 44;
     height: auto;
     padding: 0 1 1 1;
 }
@@ -191,11 +195,16 @@ SettingsPanel {
     padding: 0 1;
 }
 
+/* ── Middle row (chaos + inbox side by side) ── */
+#mid-row {
+    height: auto;
+}
+
 /* ── Chaos panel ── */
 ChaosPanel {
     border: heavy #440055;
     background: #0e0818;
-    width: 100%;
+    width: 44;
     height: auto;
     padding: 0 1 1 1;
 }
@@ -244,8 +253,8 @@ Switch.-on {
     background: #0a001a;
 }
 
-/* ── Probability slider row ── */
-#prob-row {
+/* ── Probability slider rows ── */
+.prob-row {
     height: 3;
     align: left middle;
     padding: 0 1;
@@ -263,7 +272,7 @@ HorizontalSlider:focus {
     background: #150d24;
 }
 
-#prob-value {
+.prob-value {
     width: 5;
     color: #ffcc00;
     text-style: bold;
@@ -362,7 +371,7 @@ ServerStatusBar {
 InboxPanel {
     border: heavy #005577;
     background: #08081e;
-    height: 12;
+    height: 100%;
     padding: 0 1 1 1;
 }
 
@@ -533,7 +542,7 @@ class HorizontalSlider(Widget):
 
 
 class ChaosPanel(Widget):
-    """Interactive live controls: chaos mode toggle, chaos corrupt toggle, probability slider."""
+    """Interactive live controls: chaos mode toggle, chaos corrupt toggle, probability sliders."""
 
     def compose(self) -> ComposeResult:
         yield Static("[ CHAOS CONTROLS ]", id="chaos-title")
@@ -543,19 +552,22 @@ class ChaosPanel(Widget):
         with Horizontal(classes="chaos-row"):
             yield Static("CHAOS CORRUPT", classes="chaos-label")
             yield Switch(value=CHAOS_CORRUPT, id="sw-chaos-corrupt")
-        with Horizontal(id="prob-row"):
-            yield Static("PROBABILITY", classes="chaos-label")
-            yield HorizontalSlider(
-                value=CHAOS_PROBABILITY,
-                id="slider-prob",
-            )
-            yield Static(f"{CHAOS_PROBABILITY:.0%}", id="prob-value")
+        with Horizontal(classes="prob-row"):
+            yield Static("API PROB", classes="chaos-label")
+            yield HorizontalSlider(value=CHAOS_PROBABILITY, id="slider-chaos-prob")
+            yield Static(f"{CHAOS_PROBABILITY:.0%}", id="chaos-prob-value", classes="prob-value")
+        with Horizontal(classes="prob-row"):
+            yield Static("CORRUPT PROB", classes="chaos-label")
+            yield HorizontalSlider(value=CORRUPT_PROBABILITY, id="slider-corrupt-prob")
+            yield Static(f"{CORRUPT_PROBABILITY:.0%}", id="corrupt-prob-value", classes="prob-value")
 
-    @on(HorizontalSlider.Changed, "#slider-prob")
-    def _sync_prob_label(self, event: HorizontalSlider.Changed) -> None:
-        """Keep the percentage label in sync as the thumb moves."""
-        self.query_one("#prob-value", Static).update(f"{event.value:.0%}")
-        # Event intentionally not stopped — App also handles it for the HTTP update.
+    @on(HorizontalSlider.Changed, "#slider-chaos-prob")
+    def _sync_chaos_prob_label(self, event: HorizontalSlider.Changed) -> None:
+        self.query_one("#chaos-prob-value", Static).update(f"{event.value:.0%}")
+
+    @on(HorizontalSlider.Changed, "#slider-corrupt-prob")
+    def _sync_corrupt_prob_label(self, event: HorizontalSlider.Changed) -> None:
+        self.query_one("#corrupt-prob-value", Static).update(f"{event.value:.0%}")
 
 
 class AdminPanel(Vertical):
@@ -623,7 +635,7 @@ class InboxPanel(Container):
             obj_id = str(upload.get("object_id", ""))
             state = entry.get("state", "?")
             can_remove = entry.get("can_remove", False)
-            int_obj = entry.get("interrogation_object_id") or "—"
+            int_obj = entry.get("reencrypted_object_id") or "—"
 
             state_cell = {
                 "inbox": Text("INBOX", style="bold bright_yellow"),
@@ -668,12 +680,12 @@ class MockFisApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="top-row"):
-            with Vertical(id="left-col"):
-                yield SettingsPanel()
-                yield ChaosPanel()
+            yield SettingsPanel()
             yield AdminPanel()
         yield ServerStatusBar(id="status-bar")
-        yield InboxPanel(id="inbox-panel")
+        with Horizontal(id="mid-row"):
+            yield ChaosPanel()
+            yield InboxPanel(id="inbox-panel")
         with Container(id="log-panel"):
             yield Static("[ SERVER LOGS ]", id="log-title")
             yield RichLog(
@@ -793,9 +805,13 @@ class MockFisApp(App):
     def _on_chaos_corrupt(self, event: Switch.Changed) -> None:
         self._patch_switch("chaos_corrupt", event.value)
 
-    @on(HorizontalSlider.Changed, "#slider-prob")
-    def _on_prob_slider(self, event: HorizontalSlider.Changed) -> None:
-        self._patch_prob(event.value)
+    @on(HorizontalSlider.Changed, "#slider-chaos-prob")
+    def _on_chaos_prob_slider(self, event: HorizontalSlider.Changed) -> None:
+        self._patch_chaos_prob(event.value)
+
+    @on(HorizontalSlider.Changed, "#slider-corrupt-prob")
+    def _on_corrupt_prob_slider(self, event: HorizontalSlider.Changed) -> None:
+        self._patch_corrupt_prob(event.value)
 
     @work(group="config-switch")
     async def _patch_switch(self, key: str, value: bool) -> None:
@@ -809,15 +825,11 @@ class MockFisApp(App):
             return
         if resp.status_code == 200:
             cfg = resp.json()
-            self._tui_log(
-                log,
-                f"chaos={cfg['chaos']}  corrupt={cfg['chaos_corrupt']}  prob={cfg['chaos_probability']:.0%}",
-                "bold #cc66ff",
-            )
+            self._tui_log(log, _fmt_cfg(cfg), "bold #cc66ff")
 
-    @work(exclusive=True, group="config-slider")
-    async def _patch_prob(self, value: float) -> None:
-        """Debounced PATCH for probability slider — rapid drags coalesce into one request."""
+    @work(exclusive=True, group="config-slider-chaos")
+    async def _patch_chaos_prob(self, value: float) -> None:
+        """Debounced PATCH for API chaos probability — rapid drags coalesce into one request."""
         await asyncio.sleep(0.2)
         log = self.query_one("#log-view", RichLog)
         try:
@@ -829,12 +841,23 @@ class MockFisApp(App):
             self._tui_log(log, f"Config update failed: {exc}", "bright_red")
             return
         if resp.status_code == 200:
-            cfg = resp.json()
-            self._tui_log(
-                log,
-                f"chaos={cfg['chaos']}  corrupt={cfg['chaos_corrupt']}  prob={cfg['chaos_probability']:.0%}",
-                "bold #cc66ff",
-            )
+            self._tui_log(log, _fmt_cfg(resp.json()), "bold #cc66ff")
+
+    @work(exclusive=True, group="config-slider-corrupt")
+    async def _patch_corrupt_prob(self, value: float) -> None:
+        """Debounced PATCH for corrupt probability — independent of API chaos probability."""
+        await asyncio.sleep(0.2)
+        log = self.query_one("#log-view", RichLog)
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                resp = await client.patch(
+                    f"{BASE_URL}/admin/config", json={"corrupt_probability": value}
+                )
+        except Exception as exc:
+            self._tui_log(log, f"Config update failed: {exc}", "bright_red")
+            return
+        if resp.status_code == 200:
+            self._tui_log(log, _fmt_cfg(resp.json()), "bold #cc66ff")
 
     # ── Button → action wiring ─────────────────────────────────────────────────
 

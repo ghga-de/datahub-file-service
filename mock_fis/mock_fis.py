@@ -23,7 +23,8 @@ Environment variables (all optional):
     MOCK_FIS_AUTO_ARCHIVE          Auto-archive on success report   (default: false)
     MOCK_FIS_CHAOS                 Inject random API errors         (default: false)
     MOCK_FIS_CHAOS_CORRUPT         Inject bad metadata in uploads   (default: false)
-    MOCK_FIS_CHAOS_PROBABILITY     Probability per request [0-1]    (default: 0.3)
+    MOCK_FIS_CHAOS_PROBABILITY     Probability per API error [0-1]  (default: 0.3)
+    MOCK_FIS_CORRUPT_PROBABILITY   Probability per corrupt [0-1]    (default: 0.3)
 
 FIS routes (all under the /central prefix, no JWT validation):
     GET  /central/health
@@ -105,6 +106,7 @@ CHAOS_CORRUPT = os.getenv("MOCK_FIS_CHAOS_CORRUPT", "true").lower() in (
     "yes",
 )
 CHAOS_PROBABILITY = float(os.getenv("MOCK_FIS_CHAOS_PROBABILITY", "0.5"))
+CORRUPT_PROBABILITY = float(os.getenv("MOCK_FIS_CORRUPT_PROBABILITY", "0.5"))
 
 # All error status codes that the real FIS can return across its endpoints,
 # plus 426 which DHFS has special handling for.
@@ -144,6 +146,7 @@ class ConfigUpdate(BaseModel):
     chaos: bool | None = None
     chaos_corrupt: bool | None = None
     chaos_probability: float | None = None
+    corrupt_probability: float | None = None
 
 
 def _maybe_inject_chaos(endpoint: str) -> None:
@@ -163,8 +166,8 @@ def _maybe_inject_chaos(endpoint: str) -> None:
 def _maybe_corrupt_upload(file_upload: FileUpload) -> FileUpload:
     """Randomly corrupt one metadata field of a FileUpload to simulate bad data from FIS.
 
-    Only active when MOCK_FIS_CHAOS_CORRUPT=true.  Fires with the same
-    MOCK_FIS_CHAOS_PROBABILITY used by the HTTP error injector.
+    Only active when MOCK_FIS_CHAOS_CORRUPT=true.  Fires with probability
+    MOCK_FIS_CORRUPT_PROBABILITY (independent of the API error probability).
 
     Corruptions and their effect on DHFS:
       decrypted_sha256 — DHFS will decrypt successfully but the final checksum
@@ -173,7 +176,7 @@ def _maybe_corrupt_upload(file_upload: FileUpload) -> FileUpload:
       encrypted_size   — throws off the part-range / offset calculations
       part_size        — produces misaligned Crypt4GH segment boundaries
     """
-    if not CHAOS_CORRUPT or random.random() >= CHAOS_PROBABILITY:
+    if not CHAOS_CORRUPT or random.random() >= CORRUPT_PROBABILITY:
         return file_upload
 
     corruption = random.choice(
@@ -416,7 +419,7 @@ async def lifespan(app: FastAPI):
     )
     log.info(
         "Chaos corrupt: %s",
-        f"ON — {CHAOS_PROBABILITY:.0%} chance of bad metadata per upload response (MOCK_FIS_CHAOS_CORRUPT)"
+        f"ON — {CORRUPT_PROBABILITY:.0%} chance of bad metadata per upload response (MOCK_FIS_CHAOS_CORRUPT)"
         if CHAOS_CORRUPT
         else "OFF (MOCK_FIS_CHAOS_CORRUPT)",
     )
@@ -662,7 +665,7 @@ async def get_state():
             "file_id": file_id,
             "state": tracked.state,
             "can_remove": tracked.can_remove,
-            "interrogation_object_id": tracked.interrogation_object_id,
+            "reencrypted_object_id": tracked.interrogation_object_id,
             "upload": tracked.upload.model_dump(mode="json"),
         }
         for file_id, tracked in tracked_files.items()
@@ -686,13 +689,14 @@ async def get_config():
         "chaos": CHAOS_MODE,
         "chaos_corrupt": CHAOS_CORRUPT,
         "chaos_probability": CHAOS_PROBABILITY,
+        "corrupt_probability": CORRUPT_PROBABILITY,
     }
 
 
 @admin_router.patch("/config", status_code=status.HTTP_200_OK)
 async def patch_config(update: ConfigUpdate):
     """Update runtime chaos configuration without restarting."""
-    global CHAOS_MODE, CHAOS_CORRUPT, CHAOS_PROBABILITY
+    global CHAOS_MODE, CHAOS_CORRUPT, CHAOS_PROBABILITY, CORRUPT_PROBABILITY
     if update.chaos is not None:
         CHAOS_MODE = update.chaos
         log.info("Config: chaos_mode → %s", CHAOS_MODE)
@@ -702,10 +706,14 @@ async def patch_config(update: ConfigUpdate):
     if update.chaos_probability is not None:
         CHAOS_PROBABILITY = max(0.0, min(1.0, update.chaos_probability))
         log.info("Config: chaos_probability → %.0f%%", CHAOS_PROBABILITY * 100)
+    if update.corrupt_probability is not None:
+        CORRUPT_PROBABILITY = max(0.0, min(1.0, update.corrupt_probability))
+        log.info("Config: corrupt_probability → %.0f%%", CORRUPT_PROBABILITY * 100)
     return {
         "chaos": CHAOS_MODE,
         "chaos_corrupt": CHAOS_CORRUPT,
         "chaos_probability": CHAOS_PROBABILITY,
+        "corrupt_probability": CORRUPT_PROBABILITY,
     }
 
 
