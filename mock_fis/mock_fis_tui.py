@@ -555,11 +555,17 @@ class ChaosPanel(Widget):
         with Horizontal(classes="prob-row"):
             yield Static("API PROB", classes="chaos-label")
             yield HorizontalSlider(value=CHAOS_PROBABILITY, id="slider-chaos-prob")
-            yield Static(f"{CHAOS_PROBABILITY:.0%}", id="chaos-prob-value", classes="prob-value")
+            yield Static(
+                f"{CHAOS_PROBABILITY:.0%}", id="chaos-prob-value", classes="prob-value"
+            )
         with Horizontal(classes="prob-row"):
             yield Static("CORRUPT PROB", classes="chaos-label")
             yield HorizontalSlider(value=CORRUPT_PROBABILITY, id="slider-corrupt-prob")
-            yield Static(f"{CORRUPT_PROBABILITY:.0%}", id="corrupt-prob-value", classes="prob-value")
+            yield Static(
+                f"{CORRUPT_PROBABILITY:.0%}",
+                id="corrupt-prob-value",
+                classes="prob-value",
+            )
 
     @on(HorizontalSlider.Changed, "#slider-chaos-prob")
     def _sync_chaos_prob_label(self, event: HorizontalSlider.Changed) -> None:
