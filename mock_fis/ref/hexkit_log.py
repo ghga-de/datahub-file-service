@@ -18,7 +18,7 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from logging import Formatter, Logger, LogRecord, StreamHandler, addLevelName, getLogger
 from typing import Any, Literal
 
@@ -94,7 +94,7 @@ class JsonFormatter(Formatter):
         logging.INFO: grey,
         logging.WARNING: yellow,
         logging.ERROR: red,
-        logging.CRITICAL: bold_red
+        logging.CRITICAL: bold_red,
     }
 
     def __init__(self, include_traceback=True, *args, **kwargs):
@@ -147,7 +147,9 @@ class JsonFormatter(Formatter):
             output["exception"] = exception
 
         # Use repr for non-serializable types, since this matches the default logger
-        return self.COLORS[record.levelno] + json.dumps(output, default=repr) + self.reset
+        return (
+            self.COLORS[record.levelno] + json.dumps(output, default=repr) + self.reset
+        )
 
 
 class RecordCompiler(StreamHandler):
@@ -164,7 +166,7 @@ class RecordCompiler(StreamHandler):
         """Set custom record attributes"""
         log_record = record.__dict__
         timestamp = datetime.fromtimestamp(log_record["created"])
-        timestamp = timestamp.astimezone(timezone.utc)
+        timestamp = timestamp.astimezone(UTC)
         iso_timestamp = timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         extras = {
             key: value

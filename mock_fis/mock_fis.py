@@ -93,9 +93,17 @@ PUB_KEY_PATH = Path(os.getenv("MOCK_FIS_DHFS_PUB_KEY", "/workspace/key.pub"))
 PORT = int(os.getenv("MOCK_FIS_PORT", "8000"))
 FILE_SIZE = int(os.getenv("MOCK_FIS_FILE_SIZE_MB", "6")) * 1024 * 1024
 PART_SIZE = int(os.getenv("MOCK_FIS_PART_SIZE_MB", "5")) * 1024 * 1024
-AUTO_ARCHIVE = os.getenv("MOCK_FIS_AUTO_ARCHIVE", "false").lower() in ("1", "true", "yes")
+AUTO_ARCHIVE = os.getenv("MOCK_FIS_AUTO_ARCHIVE", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 CHAOS_MODE = os.getenv("MOCK_FIS_CHAOS", "true").lower() in ("1", "true", "yes")
-CHAOS_CORRUPT = os.getenv("MOCK_FIS_CHAOS_CORRUPT", "true").lower() in ("1", "true", "yes")
+CHAOS_CORRUPT = os.getenv("MOCK_FIS_CHAOS_CORRUPT", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 CHAOS_PROBABILITY = float(os.getenv("MOCK_FIS_CHAOS_PROBABILITY", "0.5"))
 
 # All error status codes that the real FIS can return across its endpoints,
@@ -113,6 +121,7 @@ _CHAOS_DETAILS = {
     status.HTTP_500_INTERNAL_SERVER_ERROR: "Something went wrong.",
 }
 
+
 # ── Models ────────────────────────────────────────────────────────────────────
 class FileUpload(BaseModel):
     """Mirrors fis.core.models.BaseFileInformation / dhfs.core.models.FileUpload."""
@@ -122,9 +131,20 @@ class FileUpload(BaseModel):
     bucket_id: str = Field(..., description="Inbox bucket name")
     object_id: UUID4 = Field(..., description="S3 object ID in the inbox bucket")
     decrypted_sha256: str = Field(..., description="SHA-256 of the unencrypted content")
-    decrypted_size: int = Field(..., description="Size of the unencrypted content in bytes")
+    decrypted_size: int = Field(
+        ..., description="Size of the unencrypted content in bytes"
+    )
     encrypted_size: int = Field(..., description="Size of the encrypted file in bytes")
     part_size: int = Field(..., description="Part size used when uploading")
+
+
+class ConfigUpdate(BaseModel):
+    """Partial update payload for runtime chaos configuration."""
+
+    chaos: bool | None = None
+    chaos_corrupt: bool | None = None
+    chaos_probability: float | None = None
+
 
 def _maybe_inject_chaos(endpoint: str) -> None:
     """Randomly raise an HTTP error to simulate FIS misbehaving.
@@ -136,9 +156,7 @@ def _maybe_inject_chaos(endpoint: str) -> None:
     if not CHAOS_MODE or random.random() >= CHAOS_PROBABILITY:
         return
     error_code = random.choice(_CHAOS_ERROR_CODES)
-    log.warning(
-        "CHAOS: injecting HTTP %d on %s", error_code, endpoint
-    )
+    log.warning("CHAOS: injecting HTTP %d on %s", error_code, endpoint)
     raise HTTPException(status_code=error_code, detail=_CHAOS_DETAILS[error_code])
 
 
@@ -158,7 +176,9 @@ def _maybe_corrupt_upload(file_upload: FileUpload) -> FileUpload:
     if not CHAOS_CORRUPT or random.random() >= CHAOS_PROBABILITY:
         return file_upload
 
-    corruption = random.choice(["decrypted_sha256", "decrypted_size", "encrypted_size", "part_size"])
+    corruption = random.choice(
+        ["decrypted_sha256", "decrypted_size", "encrypted_size", "part_size"]
+    )
 
     if corruption == "decrypted_sha256":
         bad_value = hashlib.sha256(os.urandom(16)).hexdigest()
@@ -199,7 +219,6 @@ def _maybe_corrupt_upload(file_upload: FileUpload) -> FileUpload:
         bad_value,
     )
     return file_upload.model_copy(update={"part_size": bad_value})
-
 
 
 # ── In-memory state ───────────────────────────────────────────────────────────
@@ -361,10 +380,9 @@ def _reports_conflict(existing: dict, incoming: dict) -> bool:
     if existing["passed"] != incoming["passed"]:
         return True
     if incoming["passed"]:
-        return (
-            existing.get("bucket_id") != incoming.get("bucket_id")
-            or existing.get("object_id") != incoming.get("object_id")
-        )
+        return existing.get("bucket_id") != incoming.get("bucket_id") or existing.get(
+            "object_id"
+        ) != incoming.get("object_id")
     return False
 
 
@@ -386,7 +404,9 @@ async def lifespan(app: FastAPI):
 
     log.info(
         "Auto-archive on success: %s",
-        "ON (MOCK_FIS_AUTO_ARCHIVE)" if AUTO_ARCHIVE else "OFF — use POST /admin/archive_all",
+        "ON (MOCK_FIS_AUTO_ARCHIVE)"
+        if AUTO_ARCHIVE
+        else "OFF — use POST /admin/archive_all",
     )
     log.info(
         "Chaos mode: %s",
@@ -615,7 +635,9 @@ async def clear_inbox():
     objects = response.get("Contents", [])
 
     if not objects:
-        log.info("DELETE /admin/inbox — inbox bucket '%s' is already empty.", INBOX_BUCKET)
+        log.info(
+            "DELETE /admin/inbox — inbox bucket '%s' is already empty.", INBOX_BUCKET
+        )
         return {"deleted": []}
 
     deleted_keys = [obj["Key"] for obj in objects]
@@ -655,6 +677,36 @@ async def get_reports():
         for tracked in tracked_files.values()
         if tracked.report is not None
     ]
+
+
+@admin_router.get("/config", status_code=status.HTTP_200_OK)
+async def get_config():
+    """Return current runtime chaos configuration."""
+    return {
+        "chaos": CHAOS_MODE,
+        "chaos_corrupt": CHAOS_CORRUPT,
+        "chaos_probability": CHAOS_PROBABILITY,
+    }
+
+
+@admin_router.patch("/config", status_code=status.HTTP_200_OK)
+async def patch_config(update: ConfigUpdate):
+    """Update runtime chaos configuration without restarting."""
+    global CHAOS_MODE, CHAOS_CORRUPT, CHAOS_PROBABILITY
+    if update.chaos is not None:
+        CHAOS_MODE = update.chaos
+        log.info("Config: chaos_mode → %s", CHAOS_MODE)
+    if update.chaos_corrupt is not None:
+        CHAOS_CORRUPT = update.chaos_corrupt
+        log.info("Config: chaos_corrupt → %s", CHAOS_CORRUPT)
+    if update.chaos_probability is not None:
+        CHAOS_PROBABILITY = max(0.0, min(1.0, update.chaos_probability))
+        log.info("Config: chaos_probability → %.0f%%", CHAOS_PROBABILITY * 100)
+    return {
+        "chaos": CHAOS_MODE,
+        "chaos_corrupt": CHAOS_CORRUPT,
+        "chaos_probability": CHAOS_PROBABILITY,
+    }
 
 
 app.include_router(admin_router)

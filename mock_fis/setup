@@ -25,9 +25,13 @@ get_script_dir()
 
 SCRIPTDIR=$(get_script_dir)
 
+pip install textual > /dev/null
+pip install textual-dev > /dev/null
+echo "🐍 Installed textual python package"
+
 # Overwrite hexkit.log in order to color-code output
-echo "📃 Overwrote hexkit.log module to color-code and abbreviate log lines"
 cat $SCRIPTDIR/ref/hexkit_log.py > $(python -m site --user-site)/hexkit/log.py
+echo "📃 Overwrote hexkit.log module to color-code and abbreviate log lines"
 
 # Write test crypt4gh keys to root dir
 cp $SCRIPTDIR/ref/key.pub /workspace/
