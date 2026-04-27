@@ -35,6 +35,10 @@ class S3ClientPort(ABC):
     class BucketNotFoundError(InconclusiveError):
         """Raised when a given bucket does not exist in S3"""
 
+        def __init__(self, *, bucket_id: str) -> None:
+            msg = f"Could not find any bucket with the ID '{bucket_id}'."
+            super().__init__(msg)
+
     class ObjectNotFoundError(InconclusiveError):
         """Raised when a given object does not exist in S3"""
 
@@ -45,8 +49,8 @@ class S3ClientPort(ABC):
 
         def __init__(self, *, upload_id: str, object_id: str, part_count: int):
             msg = (
-                f"S3 rejected upload {upload_id} for file {object_id} due to a difference"
-                + f" in the expected part count {part_count}."
+                f"S3 rejected upload {upload_id} for object {object_id} due to a"
+                + f" difference in the expected part count {part_count}."
             )
             super().__init__(msg)
 
