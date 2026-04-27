@@ -14,5 +14,5 @@ client_retry_status_codes:  # Don't retry 500
 - 502
 - 503
 - 504
-min_run_interval_seconds: 10
+min_run_interval_seconds: 20
 log_level: DEBUG

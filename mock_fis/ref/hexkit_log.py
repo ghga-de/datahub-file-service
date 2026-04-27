@@ -125,7 +125,7 @@ class JsonFormatter(Formatter):
         # output["service"] = log_record["service"]
         # output["instance"] = log_record["instance"]
         output["level"] = log_record["level"]
-        output["name"] = log_record["name"]
+        # output["name"] = log_record["name"]
         # output["correlation_id"] = log_record["correlation_id"]
         output["message"] = record.getMessage()  # construct msg str with any args
         output["details"] = log_record["details"]
