@@ -29,8 +29,8 @@ from textual.widgets import Button, DataTable, Footer, Header, RichLog, Static, 
 # ── Config (mirrors mock_fis.py env var defaults) ────────────────────────────
 PORT = int(os.getenv("MOCK_FIS_PORT", "8000"))
 BASE_URL = f"http://localhost:{PORT}"
-CHAOS_MODE = os.getenv("MOCK_FIS_CHAOS", "true").lower() in ("1", "true", "yes")
-CHAOS_CORRUPT = os.getenv("MOCK_FIS_CHAOS_CORRUPT", "true").lower() in (
+CHAOS_MODE = os.getenv("MOCK_FIS_CHAOS", "false").lower() in ("1", "true", "yes")
+CHAOS_CORRUPT = os.getenv("MOCK_FIS_CHAOS_CORRUPT", "false").lower() in (
     "1",
     "true",
     "yes",
@@ -547,10 +547,10 @@ class ChaosPanel(Widget):
     def compose(self) -> ComposeResult:
         yield Static("[ CHAOS CONTROLS ]", id="chaos-title")
         with Horizontal(classes="chaos-row"):
-            yield Static("CHAOS MODE", classes="chaos-label")
+            yield Static("API ERRORS", classes="chaos-label")
             yield Switch(value=CHAOS_MODE, id="sw-chaos-mode")
         with Horizontal(classes="chaos-row"):
-            yield Static("CHAOS CORRUPT", classes="chaos-label")
+            yield Static("FILE CORRUPTION", classes="chaos-label")
             yield Switch(value=CHAOS_CORRUPT, id="sw-chaos-corrupt")
         with Horizontal(classes="prob-row"):
             yield Static("API PROB", classes="chaos-label")

@@ -3,3 +3,4 @@
 
 scripts/update_openapi_docs.py
 .github/workflows/check_openapi_spec.yaml
+.pyproject_generation/pyproject_template.toml

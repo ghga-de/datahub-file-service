@@ -52,6 +52,7 @@ exclude = [
     "__pycache__",
     "build",
     "dist",
+    "mock_fis",
 ]
 line-length = 88
 src = [
@@ -140,6 +141,7 @@ disable_error_code = "import"
 show_error_codes = true
 exclude = [
     "build/lib/",
+    "mock_fis/",
 ]
 warn_redundant_casts = true
 warn_unused_ignores = true

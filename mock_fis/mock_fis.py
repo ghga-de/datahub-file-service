@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Mock FIS (File Ingest Service / Central API) server for local DHFS development.
 
 This server mimics the FIS API that DHFS talks to, without JWT validation.
@@ -16,7 +15,7 @@ Environment variables (all optional):
     MOCK_FIS_INBOX_BUCKET          Inbox bucket name                (default: inbox1)
     MOCK_FIS_INTERROGATION_BUCKET  Interrogation bucket name        (default: interrogation)
     MOCK_FIS_STORAGE_ALIAS         Storage alias                    (default: TESTHUB)
-    MOCK_FIS_DHFS_PUB_KEY          DHFS crypt4gh .pub path          (default: /workspace/key.pub)
+    MOCK_FIS_DHFS_PUB_KEY          DHFS crypt4gh .pub path          (default: /workspace/test_keys/key.pub)
     MOCK_FIS_PORT                  Port to listen on                (default: 8000)
     MOCK_FIS_FILE_SIZE_MB          Plaintext file size MB           (default: 6)
     MOCK_FIS_PART_SIZE_MB          Upload part size MB              (default: 5)
@@ -90,7 +89,7 @@ S3_REGION = os.getenv("MOCK_FIS_S3_REGION", "eu-west-1")
 INBOX_BUCKET = os.getenv("MOCK_FIS_INBOX_BUCKET", "inbox1")
 INTERROGATION_BUCKET = os.getenv("MOCK_FIS_INTERROGATION_BUCKET", "interrogation")
 STORAGE_ALIAS = os.getenv("MOCK_FIS_STORAGE_ALIAS", "TESTHUB")
-PUB_KEY_PATH = Path(os.getenv("MOCK_FIS_DHFS_PUB_KEY", "/workspace/key.pub"))
+PUB_KEY_PATH = Path(os.getenv("MOCK_FIS_DHFS_PUB_KEY", "/workspace/test_keys/key.pub"))
 PORT = int(os.getenv("MOCK_FIS_PORT", "8000"))
 FILE_SIZE = int(os.getenv("MOCK_FIS_FILE_SIZE_MB", "6")) * 1024 * 1024
 PART_SIZE = int(os.getenv("MOCK_FIS_PART_SIZE_MB", "5")) * 1024 * 1024
