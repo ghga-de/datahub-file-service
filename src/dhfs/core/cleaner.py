@@ -37,6 +37,7 @@ class S3Cleaner(S3CleanerPort):
         central_client: CentralClientPort,
         s3_client: S3ClientPort,
     ):
+        # TODO: config - use it or lose it
         self._central_client = central_client
         self._s3_client = s3_client
 
@@ -81,13 +82,12 @@ class S3Cleaner(S3CleanerPort):
 
         for object_id in removable_objects:
             try:
+                # Logging done inside .remove_file()
                 await self._s3_client.remove_file(object_id=object_id)
-            except Exception as exc:
-                log.error("Cleanup failed for object %s: %s", object_id, exc)
+            except Exception:
                 failed_deletions.append(object_id)
             else:
                 deleted_count += 1
-                log.debug("Successfully deleted file: %s", object_id)
 
         log.info(
             "Cleanup completed%s: %d file(s) deleted successfully, %d failed.",
