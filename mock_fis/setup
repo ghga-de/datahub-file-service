@@ -36,7 +36,4 @@ echo "📃 Overwrote hexkit.log module to color-code and abbreviate log lines"
 # Write test crypt4gh keys to root dir
 cp $SCRIPTDIR/ref/key.pub /workspace/
 cp $SCRIPTDIR/ref/key.sec /workspace/
-
-# Install convenience VS Code Extension for creating named, color-coded terminals
-code --install-extension $SCRIPTDIR/ref/ext/mock-fis-terminals-0.0.1.vsix > /dev/null
-echo "✅ Extension installed: Ctrl+Shift+P --> \"DHFS: Create Mock FIS Terminals\""
+echo "🗝️ Placed crypt4gh test keys in root dir"
