@@ -74,38 +74,61 @@ class Interrogator(InterrogatorPort):
         Raises:
         - CantCompleteError if an error prevents interrogation from completing (e.g., network issues, S3 unavailable).
         """
-        new_files = await self._central_client.fetch_new_uploads()
+        try:
+            new_files = await self._central_client.fetch_new_uploads()
+        except CentralClientPort.UpgradeRequiredError as err:
+            raise self.CriticalError(err) from err
+
         log.info("Received a batch of %i file(s) to process.", len(new_files))
         for file in new_files:
             try:
                 # Verify that the file exists in the inbox before proceeding
                 if not await self._s3_client.get_is_file_in_inbox(file=file):
-                    raise self.FileNotFoundError(
-                        file_id=file.id, object_id=file.object_id
+                    raise self.InconclusiveError(
+                        f"The file {file.id}, under object ID {file.object_id} was not"
+                        + " found in the inbox"
                     )
                 await self.interrogate_file(file)
-            except self.InterrogationError as err:
+            except (
+                S3ClientPort.CriticalS3Error,
+                CentralClientPort.UpgradeRequiredError,
+            ) as err:
+                raise InterrogatorPort.CriticalError(err) from err
+            except self.ConclusiveError as err:
                 reason = getattr(err, "reason", None) or "Unexpected error"
                 await self.report_failure(file_id=file.id, reason=reason)
+            except (S3ClientPort.S3OperationError, self.InconclusiveError) as err:
+                log.warning(
+                    "File %s: Unable to conclusively process file - will retry later. Reason: %s",
+                    file.id,
+                    err,
+                )
         log.info("Finished processing current file batch.")
 
     async def _fetch_original_secret(self, *, file_upload: FileUpload) -> SecretBytes:
         """Fetch the original file encryption secret.
 
         Raises:
-        - BucketNotFoundError if the inbox bucket doesn't exist.
-        - ObjectNotFoundError if the file doesn't exist in the inbox.
-        - DownloadError if the download request fails.
-        - CryptoError if the Crypt4GH envelope cannot be decrypted.
-        - ValueError if the secrets list returned by Crypt4GH is not 1 element long.
+        - CantCompleteError if the file doesn't exist in the inbox or if the download
+            request fails.
+        - FileEnvelopeDecryptionError if the Crypt4GH envelope cannot be decrypted or
+            if the secrets list returned by Crypt4GH is not 1 element long.
         """
-        envelope = await self._s3_client.fetch_file_content_range(
-            bucket_id=file_upload.bucket_id,
-            object_id=str(file_upload.object_id),
-            start=0,
-            stop=file_upload.offset,
-        )
-        return self._extract_secret(envelope=envelope)
+        try:
+            envelope = await self._s3_client.fetch_file_content_range(
+                bucket_id=file_upload.bucket_id,
+                object_id=str(file_upload.object_id),
+                start=0,
+                stop=file_upload.offset,
+            )
+        except S3ClientPort.S3OperationError as err:
+            raise self.InconclusiveError(err) from err
+
+        try:
+            return self._extract_secret(envelope=envelope)
+        except Exception as err:
+            # Failed to decrypt envelope - interrogation failed - no cleanup needed
+            raise self.FileEnvelopeDecryptionError() from err
 
     def _extract_secret(self, *, envelope: bytes) -> SecretBytes:
         """Extract file encryption/decryption secret from envelope.
@@ -137,37 +160,50 @@ class Interrogator(InterrogatorPort):
         - BucketNotFoundError if the inbox bucket doesn't exist.
         - ObjectNotFoundError if the file doesn't exist in the inbox.
         - DownloadError if the download request fails.
-        - DecryptionError if the part cannot be decrypted (wrapped from underlying exceptions).
+        - DecryptionError if the part cannot be decrypted.
         """
-        part = await self._s3_client.fetch_file_content_range(
-            bucket_id=bucket_id,
-            object_id=object_id,
-            start=part_range.start,
-            stop=part_range.stop,
-        )
+        try:
+            part = await self._s3_client.fetch_file_content_range(
+                bucket_id=bucket_id,
+                object_id=object_id,
+                start=part_range.start,
+                stop=part_range.stop,
+            )
+        except S3ClientPort.S3OperationError as err:
+            log.warning(
+                "Couldn't fetch file content range.",
+                extra={
+                    "inbox_object_id": object_id,
+                    "content_range": f"{part_range.start}-{part_range.stop}",
+                },
+            )
+            raise self.InconclusiveError(err) from err
         return self._decrypt_part(encrypted_part=part, secret=secret)
 
     def _decrypt_part(self, *, encrypted_part: bytes, secret: SecretBytes) -> bytes:
         """Decrypt an encrypted file part with the given key.
 
-        May raise exceptions from the underlying decrypt_algo if decryption fails.
+        Raises DecryptionError if decryption fails.
         """
         buffer = bytearray()
         part_size = len(encrypted_part)
         position = 0
 
-        while position < part_size:
-            chunk = encrypted_part[
-                position : position + crypt4gh.lib.CIPHER_SEGMENT_SIZE
-            ]
-            buffer += decrypt_algo(
-                chunk[NONCE_LENGTH:],  # data to decrypt (after nonce)
-                None,
-                chunk[:NONCE_LENGTH],  # nonce (first 12 bytes)
-                secret.get_secret_value(),
-            )
-            position += crypt4gh.lib.CIPHER_SEGMENT_SIZE
-        return bytes(buffer)
+        try:
+            while position < part_size:
+                chunk = encrypted_part[
+                    position : position + crypt4gh.lib.CIPHER_SEGMENT_SIZE
+                ]
+                buffer += decrypt_algo(
+                    chunk[NONCE_LENGTH:],  # data to decrypt (after nonce)
+                    None,
+                    chunk[:NONCE_LENGTH],  # nonce (first 12 bytes)
+                    secret.get_secret_value(),
+                )
+                position += crypt4gh.lib.CIPHER_SEGMENT_SIZE
+            return bytes(buffer)
+        except Exception as err:
+            raise self.DecryptionError() from err
 
     def _reencrypt_part(
         self, *, decrypted_part: bytes, new_secret: SecretBytes
@@ -190,7 +226,7 @@ class Interrogator(InterrogatorPort):
 
         return bytes(buffer)
 
-    async def _process_file_parts(  # noqa: C901, PLR0915
+    async def _process_file_parts(
         self,
         *,
         file_upload: FileUpload,
@@ -233,6 +269,7 @@ class Interrogator(InterrogatorPort):
         ):
             log.debug("File %s: Processing part %s.", file_id, part_no)
             log_extra["file_part_number"] = part_no
+
             # Initial decryption
             try:
                 decrypted_part = await self._fetch_and_decrypt_part(
@@ -241,13 +278,13 @@ class Interrogator(InterrogatorPort):
                     part_range=part_range,
                     secret=old_secret,
                 )
-            except Exception as err:
+            except Exception:
                 log.warning(
-                    "File %s: Unable to decrypt a file part.",
+                    "File %s: Failed to get and decrypt next file part.",
                     file_id,
                     extra=log_extra,
                 )
-                raise self.DecryptionError() from err
+                raise
 
             # Re-encrypt
             try:
@@ -260,20 +297,20 @@ class Interrogator(InterrogatorPort):
                     file_id,
                     extra=log_extra,
                 )
-                raise self.ReencryptionError() from err
+                raise self.InconclusiveError(err) from err
 
             # Decrypt again to verify encryption process was correct
             try:
                 decrypted_part = self._decrypt_part(
                     encrypted_part=reencrypted_part, secret=new_secret
                 )
-            except Exception as err:
+            except Exception:
                 log.warning(
                     "File %s: A file part seems incorrectly re-encrypted.",
                     file_id,
                     extra=log_extra,
                 )
-                raise self.DecryptionError() from err
+                raise
 
             # Update whole-decrypted-file sha256
             checksums.update_unencrypted(decrypted_part)
@@ -300,10 +337,8 @@ class Interrogator(InterrogatorPort):
                         extra=log_extra,
                     )
                     uploaded_part_number += 1
-                except S3ClientPort.InconclusiveError as err:
-                    raise self.CantCompleteError() from err
-                except S3ClientPort.ConclusiveError as err:
-                    raise self.InterrogationError() from err
+                except S3ClientPort.S3OperationError as err:
+                    raise self.InconclusiveError(err) from err
 
                 # Set buffer to whatever the remainder was
                 upload_buffer = upload_buffer[file_upload.adjusted_part_size :]
@@ -326,40 +361,34 @@ class Interrogator(InterrogatorPort):
                     uploaded_part_number,
                     extra=log_extra,
                 )
-            except S3ClientPort.ConclusiveError as error:
-                raise self.InterrogationError() from error
-            except S3ClientPort.InconclusiveError as error:
-                raise self.CantCompleteError() from error
+            except S3ClientPort.S3OperationError as err:
+                raise self.InconclusiveError(err) from err
 
         log.debug(
-            "File %s: All %i S3 part(s) uploaded.",
+            "File %s: All %i file part(s) uploaded to S3.",
             file_id,
             len(checksums.encrypted_md5),
             extra=log_extra,
         )
         return checksums
 
-    async def interrogate_file(self, file_upload: FileUpload) -> None:
+    async def interrogate_file(self, file_upload: FileUpload) -> None:  # noqa: C901, PLR0915
         """Inspect and re-encrypt a newly uploaded file.
 
         Raises:
         - FileEnvelopeDecryptionError if the Crypt4GH envelope cannot be decrypted.
         - DecryptionError if a file part cannot be decrypted.
-        - ReencryptionError if re-encryption fails.
         - ChecksumMismatchError if checksums don't match expected values.
         - CantCompleteError if an error prevents interrogation from completing.
-        - InterrogationError for other errors that signal interrogation failure.
+        - UploadCompletionError if there's an error while trying to conclude the upload.
         """
         # Extract the file encryption secret and content offset
         log.debug(
             "File %s: Fetching original symmetric encryption secret from file envelope.",
             file_upload.id,
         )
-        try:
-            old_secret = await self._fetch_original_secret(file_upload=file_upload)
-        except Exception as err:
-            # Failed to decrypt envelope - interrogation failed - no cleanup needed
-            raise self.FileEnvelopeDecryptionError() from err
+        # Error handling performed inside ._fetch_original_secret()
+        old_secret = await self._fetch_original_secret(file_upload=file_upload)
 
         # Initiate multipart upload
         new_object_id = str(uuid4())
@@ -382,9 +411,8 @@ class Interrogator(InterrogatorPort):
                 file_upload.id,
                 extra={"reencrypted_object_id": new_object_id, "upload_id": upload_id},
             )
-        except Exception as err:
-            # There are no errors in this step that would indicate conclusive failure
-            raise self.CantCompleteError() from err
+        except S3ClientPort.S3OperationError as err:
+            raise self.InconclusiveError(err) from err
 
         # Generate new file encryption secret
         new_secret = SecretBytes(os.urandom(ENCRYPTION_SECRET_LENGTH))
@@ -397,6 +425,7 @@ class Interrogator(InterrogatorPort):
                 "File %s: Starting decryption/re-encryption process.",
                 file_upload.id,
             )
+            # Error translation handled inside ._process_file_parts()
             checksums = await self._process_file_parts(
                 file_upload=file_upload,
                 new_object_id=new_object_id,
@@ -405,32 +434,41 @@ class Interrogator(InterrogatorPort):
                 new_secret=new_secret,
             )
         except Exception:  # all exceptions require aborting the upload, just re-raise
-            await self._s3_client.abort_upload(
-                upload_id=upload_id, object_id=new_object_id
-            )
-            log.info(
-                "File %s: Aborted upload as part of cleanup.",
-                file_upload.id,
-                extra={"file_id": file_upload.id, "upload_id": upload_id},
-            )
+            try:
+                await self._s3_client.abort_upload(
+                    upload_id=upload_id, object_id=new_object_id
+                )
+            except S3ClientPort.S3Error as abort_err:
+                # Log error but don't raise - preserve original error
+                log.error(abort_err)
+            else:
+                log.info(
+                    "File %s: Aborted upload as part of cleanup.",
+                    file_upload.id,
+                    extra={"file_id": file_upload.id, "upload_id": upload_id},
+                )
             raise
 
         # Compare final decrypted content checksum with the user-reported value
-        # TODO: Undo this debug if True line
-        if True:
-            # if checksums.unencrypted_sha256.hexdigest() != file_upload.decrypted_sha256:
+        if checksums.unencrypted_sha256.hexdigest() != file_upload.decrypted_sha256:
             log.warning(
-                "File %s: Unable to re-encrypt: sha256 checksum of decrypted content doesn't match user-reported value.",
+                "File %s: Unable to re-encrypt: sha256 checksum of decrypted content"
+                + " doesn't match user-reported value.",
                 file_upload.id,
             )
-            await self._s3_client.abort_upload(
-                upload_id=upload_id, object_id=new_object_id
-            )
-            log.info(
-                "File %s: Aborted upload as part of cleanup.",
-                file_upload.id,
-                extra={"file_id": file_upload.id, "upload_id": upload_id},
-            )
+            try:
+                await self._s3_client.abort_upload(
+                    upload_id=upload_id, object_id=new_object_id
+                )
+            except S3ClientPort.S3Error as abort_err:
+                # Log error but don't raise because we'll raise other error below
+                log.error(abort_err)
+            else:
+                log.info(
+                    "File %s: Aborted upload as part of cleanup.",
+                    file_upload.id,
+                    extra={"file_id": file_upload.id, "upload_id": upload_id},
+                )
             raise self.DecryptedChecksumMismatchError()
 
         # Complete upload
@@ -440,7 +478,7 @@ class Interrogator(InterrogatorPort):
             extra={"file_id": file_upload.id, "upload_id": upload_id},
         )
         try:
-            actual_etag = await self._s3_client.complete_upload(
+            etag_of_reencrypted_obj = await self._s3_client.complete_upload(
                 upload_id=upload_id,
                 object_id=new_object_id,
                 part_count=len(checksums.encrypted_md5),
@@ -451,29 +489,24 @@ class Interrogator(InterrogatorPort):
                 upload_id,
                 new_object_id,
             )
-        except S3ClientPort.InconclusiveError as err:
-            await self._s3_client.abort_upload(
-                upload_id=upload_id, object_id=new_object_id
-            )
-            log.info(
-                "File %s: Aborted upload as part of cleanup.",
-                file_upload.id,
-                extra={"file_id": file_upload.id, "upload_id": upload_id},
-            )
-            raise self.CantCompleteError() from err
-        except S3ClientPort.ConclusiveError as err:
-            await self._s3_client.abort_upload(
-                upload_id=upload_id, object_id=new_object_id
-            )
-            log.info(
-                "File %s: Aborted upload as part of cleanup.",
-                file_upload.id,
-                extra={"file_id": file_upload.id, "upload_id": upload_id},
-            )
-            raise self.InterrogationError() from err
+        except S3ClientPort.S3Error as err:
+            try:
+                await self._s3_client.abort_upload(
+                    upload_id=upload_id, object_id=new_object_id
+                )
+            except S3ClientPort.S3Error as abort_err:
+                # Log error but don't raise in order to preserve original error
+                log.error(abort_err)
+            else:
+                log.info(
+                    "File %s: Aborted upload as part of cleanup (if upload existed).",
+                    file_upload.id,
+                    extra={"file_id": file_upload.id, "upload_id": upload_id},
+                )
+            raise self.InconclusiveError(err) from err
 
         # Check integrity of final object in S3
-        if checksums.encrypted_checksum_for_s3() != actual_etag:
+        if checksums.encrypted_checksum_for_s3() != etag_of_reencrypted_obj:
             log.warning(
                 "File %s: The S3 ETag (MD5 checksum) doesn't match the locally calculated value.",
                 file_upload.id,
@@ -486,6 +519,7 @@ class Interrogator(InterrogatorPort):
             try:
                 await self._s3_client.remove_file(object_id=new_object_id)
             except Exception as exc:
+                # Don't re-raise this error because we'll raise a different error below
                 log.error(
                     "File %s: Cleanup failed: %s",
                     file_upload.id,
@@ -504,7 +538,11 @@ class Interrogator(InterrogatorPort):
                     "reencrypted_object_id": new_object_id,
                 },
             )
-            raise self.EncryptedChecksumMismatchError()
+
+            # This is a problem on our end:
+            raise self.InconclusiveError(
+                "Encrypted content checksum did not match the expected value."
+            )
 
         # Issue report to Central API containing new encryption secret and checksums
         log.debug(

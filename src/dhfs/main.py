@@ -15,8 +15,8 @@
 """Service configuration and execution"""
 
 import logging
+import sys
 from asyncio import sleep
-from contextlib import suppress
 
 from hexkit.log import configure_logging
 from hexkit.utils import now_utc_ms_prec
@@ -52,33 +52,34 @@ async def run_interrogator(forever: bool = True):
             while True:
                 try:
                     start = now_utc_ms_prec()
-                    with suppress(
-                        InterrogatorPort.CantCompleteError,
-                        InterrogatorPort.InterrogationError,
-                    ):
-                        await interrogator.interrogate_new_files()
-                except Exception:
-                    log.warning(
-                        "An unhandled exception caused the current round of file"
-                        + " processing to fail. If this keeps occurring, run"
-                        + " with log_level set to DEBUG.",
+                    await interrogator.interrogate_new_files()
+                except InterrogatorPort.CriticalError as err:
+                    log.critical(
+                        "DHFS cannot continue processing until the following error is resolved: %s",
+                        err,
                     )
-                    if config.log_level == "DEBUG":
-                        raise
-                finally:
-                    stop = now_utc_ms_prec()
-                    if (
-                        timediff := (stop - start).seconds
-                    ) < config.min_run_interval_seconds:
-                        sleep_duration = config.min_run_interval_seconds - timediff
-                        log.info(
-                            "Waiting %i seconds before beginning the next round of file"
-                            + " processing because the minimum run interval is set to"
-                            + " %i seconds.",
-                            sleep_duration,
-                            config.min_run_interval_seconds,
-                        )
-                        await sleep(sleep_duration)
+                    sys.exit(1)
+                except Exception as err:
+                    log.error(
+                        "An unhandled exception caused the current batch of file"
+                        + " processing to fail. If this keeps occurring, try running"
+                        + " with log_level set to DEBUG for more information.",
+                        extra={"exc": err},
+                    )
+
+                stop = now_utc_ms_prec()
+                if (
+                    timediff := (stop - start).seconds
+                ) < config.min_run_interval_seconds:
+                    sleep_duration = config.min_run_interval_seconds - timediff
+                    log.info(
+                        "Waiting %i seconds before beginning the next round of file"
+                        + " processing because the minimum run interval is set to"
+                        + " %i seconds.",
+                        sleep_duration,
+                        config.min_run_interval_seconds,
+                    )
+                    await sleep(sleep_duration)
         else:
             await interrogator.interrogate_new_files()
 

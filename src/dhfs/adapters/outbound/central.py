@@ -100,11 +100,7 @@ class CentralClient(CentralClientPort):
     def _log_if_upgrade_required(self, status_code: int) -> None:
         """Log a hard-coded message if the Central API indicates DHFS is outdated."""
         if status_code == 426:
-            log.error(
-                "The GHGA Central API has rejected this request (HTTP 426): this DHFS"
-                " installation is outdated. Please upgrade DHFS by following GHGA's"
-                " upgrade documentation."
-            )
+            raise self.UpgradeRequiredError()
 
     def _response_to_object_id_list(self, response: httpx.Response) -> list[str]:
         """Returns a list of strings from an httpx Response.
@@ -141,6 +137,7 @@ class CentralClient(CentralClientPort):
 
         Raises:
         - CentralAPIError if the request to the central API fails.
+        - UpgradeRequiredError if the central API indicates this DHFS instance is outdated
         """
         url = f"{self._base_url}/storages/{self._storage_alias}/uploads"
         log.debug("Fetching new uploads from %s.", url)
@@ -166,6 +163,7 @@ class CentralClient(CentralClientPort):
 
         Raises:
         - CentralAPIError if the request to the central API fails.
+        - UpgradeRequiredError if the central API indicates this DHFS instance is outdated
         """
         url = f"{self._base_url}/storages/{self._storage_alias}/uploads/can_remove"
         log.debug(
@@ -196,12 +194,19 @@ class CentralClient(CentralClientPort):
 
         Raises:
         - CentralAPIError if the request to the central API fails.
+        - UpgradeRequiredError if the central API indicates this DHFS instance is outdated
         """
         body = report.model_dump(mode="json")
         url = f"{self._base_url}/storages/{self._storage_alias}/interrogation-reports"
+        msg = (
+            "was successfully re-encrypted"
+            if report.passed
+            else "could not be re-encrypted"
+        )
         log.debug(
-            "File %s: Informing GHGA Central about results.",
+            "File %s: Informing GHGA Central that the file %s.",
             report.file_id,
+            msg,
             extra={"file_id": report.file_id, "passed": report.passed, "url": url},
         )
 
@@ -223,11 +228,6 @@ class CentralClient(CentralClientPort):
             self._log_if_upgrade_required(status_code)
             raise self.CentralAPIError(url=url, status_code=status_code)
 
-        msg = (
-            "was successfully re-encrypted"
-            if report.passed
-            else "could not be re-encrypted"
-        )
         log.info(
             "File %s: Submitted report to GHGA Central indicating that the file %s.",
             report.file_id,

@@ -203,7 +203,7 @@ async def test_upload_file_part(joint_fixture: JointFixture, s3_client: S3Client
     await joint_fixture.s3.storage.create_bucket(interrogation)
 
     # Try to upload file part when bucket exists but upload does not
-    with pytest.raises(S3Client.UploadPartError):
+    with pytest.raises(S3Client.UploadURLMissingUploadError):
         await s3_client.upload_file_part(
             upload_id="bogus",
             object_id=object_id,
@@ -279,7 +279,7 @@ async def test_complete_upload(joint_fixture: JointFixture, s3_client: S3Client)
     )
 
     # Try to complete upload but use wrong part count
-    with pytest.raises(S3Client.PartCountMismatchError):
+    with pytest.raises(S3Client.IntegrityError):
         _ = await s3_client.complete_upload(
             upload_id=upload_id, object_id=object_id, part_count=5
         )

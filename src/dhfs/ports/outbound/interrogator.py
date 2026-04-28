@@ -25,50 +25,48 @@ from dhfs.core.models import FileUpload
 class InterrogatorPort(ABC):
     """A class that inspects and re-encrypts files and places them in the interrogation bucket."""
 
-    class CantCompleteError(RuntimeError):
+    class InconclusiveError(RuntimeError):
         """Base error class for errors that prevent the interrogation process from
         completing before a conclusion can be reached about the outcome.
         """
 
-    class FileNotFoundError(CantCompleteError):
-        """Raised when a file isn't found in the inbox"""
-
-        def __init__(self, *, file_id: UUID4, object_id: UUID4):
-            msg = f"The file {file_id}, under object ID {object_id} was not found in the inbox"
-            super().__init__(msg)
-
-    class ReencryptionError(CantCompleteError):
-        """Raised when there's a problem during re-encryption. This is more likely
-        caused by a code flaw than a problem with the file itself.
+    class CriticalError(RuntimeError):
+        """A version of CantCompleteError that indicates DHFS should not start a new
+        file processing batch.
         """
 
-    class InterrogationError(RuntimeError):
+    class ConclusiveError(RuntimeError):
         """Base error class for errors that ultimately signal interrogation failure"""
 
-        reason: str = "There was a problem uploading the re-encrypted file."
+        def __init__(self, reason: str | None):
+            self.reason = (
+                reason or "There was a problem uploading the re-encrypted file."
+            )
+            super().__init__(self.reason)
 
-    class FileEnvelopeDecryptionError(InterrogationError):
+    class FileEnvelopeDecryptionError(ConclusiveError):
         """Raised when the file envelope can't be decrypted"""
 
-        reason: str = "Could not decrypt the file envelope."
+        def __init__(self):
+            msg = "Could not decrypt the file envelope."
+            super().__init__(msg)
 
-    class DecryptionError(InterrogationError):
+    class DecryptionError(ConclusiveError):
         """Raised when a file part can't be decrypted"""
 
-        reason: str = "Failed to decrypt the file content."
+        def __init__(self):
+            msg = "Failed to decrypt the file content."
+            super().__init__(msg)
 
-    class DecryptedChecksumMismatchError(InterrogationError):
+    class DecryptedChecksumMismatchError(ConclusiveError):
         """Raised when the SHA256 checksums over the unencrypted content don't match."""
 
-        reason: str = (
-            "The SHA-256 checksum over unencrypted content does not match"
-            + " the value submitted with the file."
-        )
-
-    class EncryptedChecksumMismatchError(InterrogationError):
-        """Raised when the MD5 checksums over the encrypted content don't match"""
-
-        reason: str = "Encrypted content checksum did not match the expected value."
+        def __init__(self):
+            msg = (
+                "The SHA-256 checksum over unencrypted content does not match"
+                + " the value submitted with the file."
+            )
+            super().__init__(msg)
 
     @abstractmethod
     async def interrogate_new_files(self) -> None:

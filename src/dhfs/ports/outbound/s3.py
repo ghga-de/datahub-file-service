@@ -24,46 +24,62 @@ class S3ClientPort(ABC):
     """Performs S3 upload/download operations with error handling"""
 
     class S3Error(RuntimeError):
-        """Raised when there's a problem with an operation in S3"""
+        """Base error class for all S3 errors"""
 
-    class InconclusiveError(S3Error):
-        """Raised when an upload problem prevents interrogation from reaching a conclusion"""
+    class CriticalS3Error(S3Error):
+        """Raised for S3 problems that must be resolved before DHFS can continue."""
 
-    class ConclusiveError(S3Error):
-        """Raised when an upload problem signals that a file has failed interrogation."""
-
-    class BucketNotFoundError(InconclusiveError):
-        """Raised when a given bucket does not exist in S3"""
+    class BucketNotFoundError(CriticalS3Error):
+        """Raised when a given bucket does not exist in S3."""
 
         def __init__(self, *, bucket_id: str) -> None:
             msg = f"Could not find any bucket with the ID '{bucket_id}'."
             super().__init__(msg)
 
-    class ObjectNotFoundError(InconclusiveError):
+    class S3OperationError(S3Error):
+        """Raised when there's a non-critical problem with an operation in S3"""
+
+    class ObjectNotFoundError(S3OperationError):
         """Raised when a given object does not exist in S3"""
 
-    class PartCountMismatchError(ConclusiveError):
-        """Raised during upload completion when the number of uploaded file parts
-        doesn't match the expected value.
-        """
+    class DownloadError(S3OperationError):
+        """Raised when there's a problem downloading a file from the inbox."""
 
-        def __init__(self, *, upload_id: str, object_id: str, part_count: int):
+    class UploadInitError(S3OperationError):
+        """Raised when there's a problem initiating an upload."""
+
+        def __init__(self, *, object_id: str):
             msg = (
-                f"S3 rejected upload {upload_id} for object {object_id} due to a"
-                + f" difference in the expected part count {part_count}."
+                f"Cannot create a multipart upload for object {object_id} because an"
+                + " ongoing upload for the same object already exists."
             )
             super().__init__(msg)
 
-    class DownloadError(InconclusiveError):
-        """Raised when there's a problem downloading a file from the inbox."""
+    class UploadURLMissingUploadError(S3OperationError):
+        """Raised when trying to generate a presigned upload URL for an upload that doesn't exist"""
 
-    class UploadInitError(InconclusiveError):
-        """Raised when there's a problem initiating an upload to the interrogation bucket."""
+    class UploadPartError(S3OperationError):
+        """Raised when there's a problem uploading a file part."""
 
-    class UploadPartError(InconclusiveError):
-        """Raised when there's a problem uploading a file part to the interrogation bucket."""
+    class UploadCompletionError(S3OperationError):
+        """Raised when there's a problem completing an upload.
 
-    class BadPartMD5Error(ConclusiveError):
+        This serves as a catch-all for unexpected errors during upload completion.
+        """
+
+    class IntegrityError(S3OperationError):
+        """Raised during upload completion when the number or size of uploaded parts
+        doesn't match what is expected.
+        """
+
+        def __init__(self, *, upload_id: str, object_id: str):
+            msg = (
+                f"S3 rejected upload {upload_id} for object {object_id} due to a"
+                + " difference in the expected part count or size."
+            )
+            super().__init__(msg)
+
+    class BadPartMD5Error(S3OperationError):
         """Raised when the MD5 for a file part doesn't match the expected value"""
 
         def __init__(self, *, part_no: int, object_id: str):
@@ -73,21 +89,12 @@ class S3ClientPort(ABC):
             )
             super().__init__(msg)
 
-    class UploadCompletionError(InconclusiveError):
-        """Raised when there's a problem completing an upload.
-
-        This serves as a catch-all for unexpected errors during upload completion.
-        """
-
-    class S3CleanupError(RuntimeError):
+    class S3CleanupError(S3Error):
         """Raised when there's a problem deleting an object from S3"""
 
         def __init__(self, *, bucket_id: str, object_id: str):
             msg = f"Failed to delete object {object_id} from the {bucket_id} bucket."
             super().__init__(msg)
-
-    class InvalidURLError(S3Error):
-        """Raised when an upload or download URL is rejected with a 403 error"""
 
     @abstractmethod
     async def get_is_file_in_inbox(self, *, file: FileUpload) -> bool:
