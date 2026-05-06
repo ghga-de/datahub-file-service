@@ -372,7 +372,7 @@ class Interrogator(InterrogatorPort):
         )
         return checksums
 
-    async def interrogate_file(self, file_upload: FileUpload) -> None:  # noqa: C901, PLR0915
+    async def interrogate_file(self, file_upload: FileUpload) -> None:
         """Inspect and re-encrypt a newly uploaded file.
 
         Raises:
@@ -434,19 +434,9 @@ class Interrogator(InterrogatorPort):
                 new_secret=new_secret,
             )
         except Exception:  # all exceptions require aborting the upload, just re-raise
-            try:
-                await self._s3_client.abort_upload(
-                    upload_id=upload_id, object_id=new_object_id
-                )
-            except S3ClientPort.S3Error as abort_err:
-                # Log error but don't raise - preserve original error
-                log.error(abort_err)
-            else:
-                log.info(
-                    "File %s: Aborted upload as part of cleanup.",
-                    file_upload.id,
-                    extra={"file_id": file_upload.id, "upload_id": upload_id},
-                )
+            await self._clean_up_upload(
+                upload_id=upload_id, object_id=new_object_id, file_id=file_upload.id
+            )
             raise
 
         # Compare final decrypted content checksum with the user-reported value
@@ -456,19 +446,9 @@ class Interrogator(InterrogatorPort):
                 + " doesn't match user-reported value.",
                 file_upload.id,
             )
-            try:
-                await self._s3_client.abort_upload(
-                    upload_id=upload_id, object_id=new_object_id
-                )
-            except S3ClientPort.S3Error as abort_err:
-                # Log error but don't raise because we'll raise other error below
-                log.error(abort_err)
-            else:
-                log.info(
-                    "File %s: Aborted upload as part of cleanup.",
-                    file_upload.id,
-                    extra={"file_id": file_upload.id, "upload_id": upload_id},
-                )
+            await self._clean_up_upload(
+                upload_id=upload_id, object_id=new_object_id, file_id=file_upload.id
+            )
             raise self.DecryptedChecksumMismatchError()
 
         # Complete upload
@@ -490,19 +470,9 @@ class Interrogator(InterrogatorPort):
                 new_object_id,
             )
         except S3ClientPort.S3Error as err:
-            try:
-                await self._s3_client.abort_upload(
-                    upload_id=upload_id, object_id=new_object_id
-                )
-            except S3ClientPort.S3Error as abort_err:
-                # Log error but don't raise in order to preserve original error
-                log.error(abort_err)
-            else:
-                log.info(
-                    "File %s: Aborted upload as part of cleanup (if upload existed).",
-                    file_upload.id,
-                    extra={"file_id": file_upload.id, "upload_id": upload_id},
-                )
+            await self._clean_up_upload(
+                upload_id=upload_id, object_id=new_object_id, file_id=file_upload.id
+            )
             raise self.InconclusiveError(err) from err
 
         # Check integrity of final object in S3
@@ -558,6 +528,25 @@ class Interrogator(InterrogatorPort):
             encrypted_parts_sha256=checksums.encrypted_sha256,
             encrypted_size=file_upload.encrypted_size - file_upload.offset,
         )
+
+    async def _clean_up_upload(self, *, upload_id: str, object_id: str, file_id: UUID4):
+        """Abort the upload and log but otherwise suppress any errors.
+
+        This method is only called as part of a cleanup process, so there is an
+        error already being handled outside of this method. That is why the S3Error
+        is only logged.
+        """
+        try:
+            await self._s3_client.abort_upload(upload_id=upload_id, object_id=object_id)
+        except S3ClientPort.S3Error as abort_err:
+            # Log error but don't raise in order to preserve original error
+            log.error(abort_err)
+        else:
+            log.info(
+                "File %s: Aborted upload as part of cleanup (if upload existed).",
+                file_id,
+                extra={"file_id": file_id, "upload_id": upload_id},
+            )
 
     async def report_success(  # noqa: PLR0913
         self,
