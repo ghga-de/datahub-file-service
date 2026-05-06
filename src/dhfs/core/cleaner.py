@@ -17,7 +17,6 @@
 
 import logging
 
-from dhfs.config import Config
 from dhfs.ports.outbound.central import CentralClientPort
 from dhfs.ports.outbound.cleaner import S3CleanerPort
 from dhfs.ports.outbound.s3 import S3ClientPort
@@ -33,11 +32,9 @@ class S3Cleaner(S3CleanerPort):
     def __init__(
         self,
         *,
-        config: Config,
         central_client: CentralClientPort,
         s3_client: S3ClientPort,
     ):
-        # TODO: config - use it or lose it
         self._central_client = central_client
         self._s3_client = s3_client
 
