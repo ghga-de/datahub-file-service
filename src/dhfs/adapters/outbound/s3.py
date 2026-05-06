@@ -306,19 +306,15 @@ class S3Client(S3ClientPort):
 
             if status_code == 400:
                 # A bad MD5 means that uploading the re-encrypted file has failed
-                md5_error = self.BadPartMD5Error(part_no=part_no, object_id=object_id)
-                log.debug(md5_error)
-                raise md5_error
+                raise self.BadPartMD5Error(part_no=part_no, object_id=object_id)
             else:
                 detail = response.content.decode()
-                upload_error = self.UploadPartError(
+                raise self.UploadPartError(
                     object_id=object_id,
                     part_no=part_no,
                     status_code=response.status_code,
                     detail=detail,
                 )
-                log.debug(upload_error)
-                raise upload_error
 
     async def complete_upload(
         self, *, upload_id: str, object_id: str, part_count: int
