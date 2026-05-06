@@ -51,7 +51,11 @@ class S3Cleaner(S3CleanerPort):
         try:
             object_ids = await self._s3_client.list_files_in_interrogation_bucket()
         except Exception as err:
-            log.error("Failed to fetch current object list: %s", err)
+            log.error(
+                "Cleanup failed because DHFS couldn't get a list of the object IDs"
+                + " currently residing in the interrogation bucket. Error text: %s",
+                err,
+            )
             return
 
         if not object_ids:
