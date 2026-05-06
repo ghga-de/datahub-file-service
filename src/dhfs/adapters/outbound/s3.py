@@ -437,7 +437,9 @@ class S3Client(S3ClientPort):
         except ObjectStorageProtocol.MultiPartUploadNotFoundError:
             # If not found, log warning and assume it was already aborted.
             log.warning(
-                "Tried to abort the multipart upload for object %s, but S3 said it doesn't exist.",
+                "Tried to abort the multipart upload for object %s, but S3 said it"
+                + " doesn't exist. This means it was probably aborted already. Nothing"
+                + " needs to be done.",
                 object_id,
                 extra=extra,
             )
