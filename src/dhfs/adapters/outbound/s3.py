@@ -122,9 +122,7 @@ class S3Client(S3ClientPort):
         except ObjectStorageProtocol.BucketNotFoundError as err:
             raise self.BucketNotFoundError(bucket_id=bucket_id) from err
         except ObjectStorageProtocol.ObjectNotFoundError as err:
-            raise self.ObjectNotFoundError(
-                f"Cannot get download URL for object {object_id} because it doesn't exist."
-            ) from err
+            raise self.ObjectNotFoundError(object_id=object_id) from err
         except Exception as err:
             raise self.DownloadError(
                 "An unexpected error occurred while trying to generate a download URL"
@@ -262,10 +260,7 @@ class S3Client(S3ClientPort):
             )
             raise bucket_error from err
         except ObjectStorageProtocol.MultiPartUploadNotFoundError as err:
-            error = self.UploadURLMissingUploadError(
-                f"Failed to get part upload URL for upload {upload_id} because the"
-                + " upload does not exist."
-            )
+            error = self.UploadURLMissingUploadError(upload_id=upload_id)
             log.error(
                 error,
                 extra={
@@ -317,8 +312,10 @@ class S3Client(S3ClientPort):
             else:
                 detail = response.content.decode()
                 upload_error = self.UploadPartError(
-                    f"Failed to upload part {part_no} for object {object_id}. Status"
-                    + f" code is {response.status_code}. Detail: {detail}"
+                    object_id=object_id,
+                    part_no=part_no,
+                    status_code=response.status_code,
+                    detail=detail,
                 )
                 log.debug(upload_error)
                 raise upload_error

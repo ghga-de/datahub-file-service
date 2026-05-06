@@ -42,6 +42,10 @@ class S3ClientPort(ABC):
     class ObjectNotFoundError(S3OperationError):
         """Raised when a given object does not exist in S3"""
 
+        def __init__(self, *, object_id: str):
+            msg = f"Cannot get download URL for object {object_id} because it doesn't exist."
+            super().__init__(msg)
+
     class DownloadError(S3OperationError):
         """Raised when there's a problem downloading a file from the inbox."""
 
@@ -58,8 +62,24 @@ class S3ClientPort(ABC):
     class UploadURLMissingUploadError(S3OperationError):
         """Raised when trying to generate a presigned upload URL for an upload that doesn't exist"""
 
+        def __init__(self, *, upload_id: str):
+            msg = (
+                f"Failed to get part upload URL for upload {upload_id} because the"
+                + " upload does not exist."
+            )
+            super().__init__(msg)
+
     class UploadPartError(S3OperationError):
         """Raised when there's a problem uploading a file part."""
+
+        def __init__(
+            self, *, object_id: str, part_no: int, status_code: int, detail: str
+        ):
+            msg = (
+                f"Failed to upload part {part_no} for object {object_id}. Status"
+                + f" code is {status_code}. Detail: {detail}"
+            )
+            super().__init__(msg)
 
     class UploadCompletionError(S3OperationError):
         """Raised when there's a problem completing an upload.
