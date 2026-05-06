@@ -83,7 +83,6 @@ class S3Cleaner(S3CleanerPort):
 
         for object_id in removable_objects:
             try:
-                # Logging done inside .remove_file()
                 await self._s3_client.remove_file(object_id=object_id)
             except Exception:
                 failed_deletions.append(object_id)

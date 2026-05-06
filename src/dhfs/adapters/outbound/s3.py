@@ -184,11 +184,11 @@ class S3Client(S3ClientPort):
                 bust_cache=True,
             )
 
-        # TODO: Should this be logged?
         error = self.DownloadError(
             f"Received a {status_code} error when trying to download file {object_id}"
             + f" from bucket {bucket_id}."
         )
+        # This particular error is logged as the response could be useful for debugging
         log.debug(
             error,
             extra={
@@ -261,17 +261,7 @@ class S3Client(S3ClientPort):
             )
             raise bucket_error from err
         except ObjectStorageProtocol.MultiPartUploadNotFoundError as err:
-            error = self.UploadURLMissingUploadError(upload_id=upload_id)
-            # TODO: Should this log be removed?
-            log.error(
-                error,
-                extra={
-                    "upload_id": upload_id,
-                    "object_id": object_id,
-                    "part_no": part_no,
-                },
-            )
-            raise error from err
+            raise self.UploadURLMissingUploadError(upload_id=upload_id) from err
 
     async def upload_file_part(
         self,
@@ -475,7 +465,7 @@ class S3Client(S3ClientPort):
                 self._interrogation_bucket_id,
             )
         except Exception as err:
-            # TODO: Should this be logged?
+            # This error is only logged here, not in the caller
             error = self.S3CleanupError(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             )
