@@ -171,7 +171,8 @@ class Interrogator(InterrogatorPort):
             )
         except S3ClientPort.S3OperationError as err:
             log.warning(
-                "Couldn't fetch file content range.",
+                "Object %s: Couldn't fetch file content range.",
+                object_id,
                 extra={
                     "inbox_object_id": object_id,
                     "content_range": f"{part_range.start}-{part_range.stop}",
