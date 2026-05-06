@@ -215,7 +215,7 @@ class S3Client(S3ClientPort):
 
         if object_exists:
             # Delete and start the process over again
-            log.debug(
+            log.info(
                 "An object with the id %s already exists in interrogation bucket"
                 + " -- deleting before beginning interrogation.",
                 object_id,
