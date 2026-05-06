@@ -91,4 +91,9 @@ class S3Cleaner(S3CleanerPort):
             " with errors" if failed_deletions else "",
             deleted_count,
             len(failed_deletions),
+            extra=(
+                {"objects_unable_to_delete": failed_deletions}
+                if failed_deletions
+                else {}
+            ),
         )
