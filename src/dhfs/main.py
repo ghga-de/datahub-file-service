@@ -32,10 +32,9 @@ log = logging.getLogger(__name__)
 def _configure_logging(config: Config):
     """Silence log messages from libraries and set up structured logging.
 
-    This will silence logs from blacklisted libraries (unless 'critical') when the
-    log level is configured to anything above DEBUG. When log level is DEBUG for DHFS,
-    library logs with level INFO or higher will be emitted. DEBUG-level library logs
-    will still be suppressed to avoid too much noise.
+    Loggers defined in `config.library_logger_names` will be set to
+    `config.library_log_level`. If the general `config.log_level` is higher, then that
+    takes precedence. This provides granular control over DHFS's logging output.
     """
     configure_logging(config=config)
     for logger in config.library_logger_names:
