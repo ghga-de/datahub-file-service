@@ -320,12 +320,6 @@ class S3Client(S3ClientPort):
         - IntegrityError if the number of uploaded parts doesn't match the expected count.
         - UploadCompletionError if the upload doesn't exist or another error prevents completion.
         """
-        extra = {  # for logging purposes
-            "upload_id": upload_id,
-            "bucket_id": self._interrogation_bucket_id,
-            "object_id": object_id,
-            "part_count": part_count,
-        }
         try:
             # Complete the upload
             await self._storage.complete_multipart_upload(
@@ -353,22 +347,12 @@ class S3Client(S3ClientPort):
         except ObjectStorageProtocol.MultiPartUploadConfirmError as err:
             # In this case, the Interrogator needs to know that the upload has failed
             #  but the S3 client can proactively perform cleanup.
-            # TODO: Should this log message be removed?
-            part_count_error = self.IntegrityError(
-                upload_id=upload_id, object_id=object_id
-            )
-            log.warning(part_count_error, extra=extra)
-            raise part_count_error from err
+            raise self.IntegrityError(upload_id=upload_id, object_id=object_id) from err
         except ObjectStorageProtocol.MultiPartUploadNotFoundError as err:
             # This isn't as critical as the BucketNotFoundError as it's not a config issue.
             if not await self._storage.does_object_exist(
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             ):
-                log.warning(
-                    "Object %s: Neither upload nor associated object were found.",
-                    object_id,
-                    extra={"reencrypted_object_id": object_id, "upload_id": upload_id},
-                )
                 raise self.UploadCompletionError(
                     f"Couldn't complete upload {upload_id} for object {object_id}"
                     + " because the upload doesn't exist.",
@@ -383,15 +367,6 @@ class S3Client(S3ClientPort):
         except Exception as err:
             # Other errors prevent us from drawing a conclusion about interrogation.
             # All we can do is perform cleanup and let the process start over
-            log.warning(
-                "Object %s: An unexpected error prevented upload completion.",
-                object_id,
-                extra={
-                    "reencrypted_object_id": object_id,
-                    "upload_id": upload_id,
-                    "exc": err,
-                },
-            )
             raise self.UploadCompletionError(
                 "A unexpected problem occurred trying to complete multipart upload"
                 + f" {upload_id} for object {object_id} in the interrogation bucket"
