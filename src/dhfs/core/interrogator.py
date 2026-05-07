@@ -500,15 +500,16 @@ class Interrogator(InterrogatorPort):
                         "reencrypted_object_id": new_object_id,
                     },
                 )
-            log.info(
-                "File %s: Removed object from the '%s' bucket - cleanup complete.",
-                file_upload.id,
-                self._interrogation_bucket_id,
-                extra={
-                    "file_id": file_upload.id,
-                    "reencrypted_object_id": new_object_id,
-                },
-            )
+            else:
+                log.info(
+                    "File %s: Removed object from the '%s' bucket - cleanup complete.",
+                    file_upload.id,
+                    self._interrogation_bucket_id,
+                    extra={
+                        "file_id": file_upload.id,
+                        "reencrypted_object_id": new_object_id,
+                    },
+                )
 
             # This is a problem on our end:
             raise self.InconclusiveError(
