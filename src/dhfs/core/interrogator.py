@@ -169,14 +169,6 @@ class Interrogator(InterrogatorPort):
                 stop=part_range.stop,
             )
         except S3ClientPort.S3OperationError as err:
-            log.warning(
-                "Object %s: Couldn't fetch file content range.",
-                object_id,
-                extra={
-                    "inbox_object_id": object_id,
-                    "content_range": f"{part_range.start}-{part_range.stop}",
-                },
-            )
             raise self.InconclusiveError(err) from err
         except S3ClientPort.CriticalS3Error as err:
             raise self.CriticalError(err) from err
@@ -272,6 +264,7 @@ class Interrogator(InterrogatorPort):
         ):
             log.debug("File %s: Processing part %s.", file_id, part_no)
             log_extra["file_part_number"] = part_no
+            log_extra["content_range"] = f"{part_range.start}-{part_range.stop}"
 
             # Initial decryption
             try:
@@ -284,8 +277,9 @@ class Interrogator(InterrogatorPort):
             except Exception as err:
                 # Catch-all is intentional, see comments below
                 log.warning(
-                    "File %s: Failed to get and decrypt next file part.",
+                    "File %s: Failed to get and decrypt part number %i.",
                     file_id,
+                    part_no,
                     extra=log_extra,
                 )
                 # If we've already translate the underlying error, just re-raise as is
