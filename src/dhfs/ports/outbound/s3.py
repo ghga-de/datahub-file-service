@@ -49,6 +49,13 @@ class S3ClientPort(ABC):
     class DownloadError(S3OperationError):
         """Raised when there's a problem downloading a file from the inbox."""
 
+        def __init__(self, *, bucket_id: str, object_id: str, status_code: int):
+            msg = (
+                f"Received a {status_code} error when trying to download object {object_id}"
+                + f" from bucket {bucket_id}."
+            )
+            super().__init__(msg)
+
     class UploadInitError(S3OperationError):
         """Raised when there's a problem initiating an upload."""
 
@@ -86,6 +93,13 @@ class S3ClientPort(ABC):
 
         This serves as a catch-all for unexpected errors during upload completion.
         """
+
+        def __init__(self, *, upload_id: str, object_id: str):
+            msg = (
+                f"Couldn't complete upload {upload_id} for object {object_id}"
+                + " because the upload doesn't exist."
+            )
+            super().__init__(msg)
 
     class IntegrityError(S3OperationError):
         """Raised during upload completion when the number or size of uploaded parts

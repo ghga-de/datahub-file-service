@@ -124,7 +124,7 @@ class S3Client(S3ClientPort):
         except ObjectStorageProtocol.ObjectNotFoundError as err:
             raise self.ObjectNotFoundError(object_id=object_id) from err
         except Exception as err:
-            raise self.DownloadError(
+            raise self.S3OperationError(
                 "An unexpected error occurred while trying to generate a download URL"
                 + f" for object {object_id} in bucket {bucket_id}."
             ) from err
@@ -185,8 +185,7 @@ class S3Client(S3ClientPort):
             )
 
         error = self.DownloadError(
-            f"Received a {status_code} error when trying to download file {object_id}"
-            + f" from bucket {bucket_id}."
+            bucket_id=bucket_id, object_id=object_id, status_code=status_code
         )
         # This particular error is logged as the response could be useful for debugging
         log.debug(
@@ -354,8 +353,7 @@ class S3Client(S3ClientPort):
                 bucket_id=self._interrogation_bucket_id, object_id=object_id
             ):
                 raise self.UploadCompletionError(
-                    f"Couldn't complete upload {upload_id} for object {object_id}"
-                    + " because the upload doesn't exist.",
+                    upload_id=upload_id, object_id=object_id
                 ) from err
             # If the object exists, then the UploadNotFoundError must have occurred
             #  due to some timing hiccup -- the file is there so we can squash the error
@@ -367,7 +365,7 @@ class S3Client(S3ClientPort):
         except Exception as err:
             # Other errors prevent us from drawing a conclusion about interrogation.
             # All we can do is perform cleanup and let the process start over
-            raise self.UploadCompletionError(
+            raise self.S3OperationError(
                 "A unexpected problem occurred trying to complete multipart upload"
                 + f" {upload_id} for object {object_id} in the interrogation bucket"
                 + f" ({self._interrogation_bucket_id})."
@@ -402,7 +400,7 @@ class S3Client(S3ClientPort):
             log.warning(
                 "Object %s: Tried to abort the multipart upload, but S3 said it"
                 + " doesn't exist. This means it was probably aborted already. Nothing"
-                + " needs to be done.",
+                + " else needs to be done.",
                 object_id,
                 extra=extra,
             )
