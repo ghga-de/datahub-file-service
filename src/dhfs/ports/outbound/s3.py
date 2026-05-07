@@ -42,8 +42,19 @@ class S3ClientPort(ABC):
     class ObjectNotFoundError(S3OperationError):
         """Raised when a given object does not exist in S3"""
 
+        def __init__(self, *, object_id: str):
+            msg = f"Cannot get download URL for object {object_id} because it doesn't exist."
+            super().__init__(msg)
+
     class DownloadError(S3OperationError):
         """Raised when there's a problem downloading a file from the inbox."""
+
+        def __init__(self, *, bucket_id: str, object_id: str, status_code: int):
+            msg = (
+                f"Received a {status_code} error when trying to download object {object_id}"
+                + f" from bucket {bucket_id}."
+            )
+            super().__init__(msg)
 
     class UploadInitError(S3OperationError):
         """Raised when there's a problem initiating an upload."""
@@ -58,14 +69,37 @@ class S3ClientPort(ABC):
     class UploadURLMissingUploadError(S3OperationError):
         """Raised when trying to generate a presigned upload URL for an upload that doesn't exist"""
 
+        def __init__(self, *, upload_id: str):
+            msg = (
+                f"Failed to get part upload URL for upload {upload_id} because the"
+                + " upload does not exist."
+            )
+            super().__init__(msg)
+
     class UploadPartError(S3OperationError):
         """Raised when there's a problem uploading a file part."""
+
+        def __init__(
+            self, *, object_id: str, part_no: int, status_code: int, detail: str
+        ):
+            msg = (
+                f"Failed to upload part {part_no} for object {object_id}. Status"
+                + f" code is {status_code}. Detail: {detail}"
+            )
+            super().__init__(msg)
 
     class UploadCompletionError(S3OperationError):
         """Raised when there's a problem completing an upload.
 
         This serves as a catch-all for unexpected errors during upload completion.
         """
+
+        def __init__(self, *, upload_id: str, object_id: str):
+            msg = (
+                f"Couldn't complete upload {upload_id} for object {object_id}"
+                + " because the upload doesn't exist."
+            )
+            super().__init__(msg)
 
     class IntegrityError(S3OperationError):
         """Raised during upload completion when the number or size of uploaded parts
@@ -98,7 +132,11 @@ class S3ClientPort(ABC):
 
     @abstractmethod
     async def get_is_file_in_inbox(self, *, file: FileUpload) -> bool:
-        """Return a bool indicating whether the file exists in the inbox"""
+        """Return a bool indicating whether the file exists in the inbox.
+
+        Raises:
+        - BucketNotFoundError if the interrogation bucket doesn't exist.
+        """
 
     @abstractmethod
     async def list_files_in_interrogation_bucket(self) -> list[str]:

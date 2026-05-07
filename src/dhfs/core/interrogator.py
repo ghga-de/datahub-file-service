@@ -97,7 +97,7 @@ class Interrogator(InterrogatorPort):
             except self.ConclusiveError as err:
                 reason = getattr(err, "reason", None) or "Unexpected error"
                 await self.report_failure(file_id=file.id, reason=reason)
-            except (S3ClientPort.S3OperationError, self.InconclusiveError) as err:
+            except self.InconclusiveError as err:
                 log.warning(
                     "File %s: Unable to conclusively process file - will retry later. Reason: %s",
                     file.id,
@@ -171,7 +171,8 @@ class Interrogator(InterrogatorPort):
             )
         except S3ClientPort.S3OperationError as err:
             log.warning(
-                "Couldn't fetch file content range.",
+                "Object %s: Couldn't fetch file content range.",
+                object_id,
                 extra={
                     "inbox_object_id": object_id,
                     "content_range": f"{part_range.start}-{part_range.stop}",
@@ -304,13 +305,13 @@ class Interrogator(InterrogatorPort):
                 decrypted_part = self._decrypt_part(
                     encrypted_part=reencrypted_part, secret=new_secret
                 )
-            except Exception:
+            except Exception as err:
                 log.warning(
                     "File %s: A file part seems incorrectly re-encrypted.",
                     file_id,
                     extra=log_extra,
                 )
-                raise
+                raise self.InconclusiveError(err) from err
 
             # Update whole-decrypted-file sha256
             checksums.update_unencrypted(decrypted_part)
@@ -372,7 +373,7 @@ class Interrogator(InterrogatorPort):
         )
         return checksums
 
-    async def interrogate_file(self, file_upload: FileUpload) -> None:  # noqa: C901, PLR0915
+    async def interrogate_file(self, file_upload: FileUpload) -> None:
         """Inspect and re-encrypt a newly uploaded file.
 
         Raises:
@@ -434,19 +435,9 @@ class Interrogator(InterrogatorPort):
                 new_secret=new_secret,
             )
         except Exception:  # all exceptions require aborting the upload, just re-raise
-            try:
-                await self._s3_client.abort_upload(
-                    upload_id=upload_id, object_id=new_object_id
-                )
-            except S3ClientPort.S3Error as abort_err:
-                # Log error but don't raise - preserve original error
-                log.error(abort_err)
-            else:
-                log.info(
-                    "File %s: Aborted upload as part of cleanup.",
-                    file_upload.id,
-                    extra={"file_id": file_upload.id, "upload_id": upload_id},
-                )
+            await self._clean_up_upload(
+                upload_id=upload_id, object_id=new_object_id, file_id=file_upload.id
+            )
             raise
 
         # Compare final decrypted content checksum with the user-reported value
@@ -456,19 +447,9 @@ class Interrogator(InterrogatorPort):
                 + " doesn't match user-reported value.",
                 file_upload.id,
             )
-            try:
-                await self._s3_client.abort_upload(
-                    upload_id=upload_id, object_id=new_object_id
-                )
-            except S3ClientPort.S3Error as abort_err:
-                # Log error but don't raise because we'll raise other error below
-                log.error(abort_err)
-            else:
-                log.info(
-                    "File %s: Aborted upload as part of cleanup.",
-                    file_upload.id,
-                    extra={"file_id": file_upload.id, "upload_id": upload_id},
-                )
+            await self._clean_up_upload(
+                upload_id=upload_id, object_id=new_object_id, file_id=file_upload.id
+            )
             raise self.DecryptedChecksumMismatchError()
 
         # Complete upload
@@ -490,19 +471,9 @@ class Interrogator(InterrogatorPort):
                 new_object_id,
             )
         except S3ClientPort.S3Error as err:
-            try:
-                await self._s3_client.abort_upload(
-                    upload_id=upload_id, object_id=new_object_id
-                )
-            except S3ClientPort.S3Error as abort_err:
-                # Log error but don't raise in order to preserve original error
-                log.error(abort_err)
-            else:
-                log.info(
-                    "File %s: Aborted upload as part of cleanup (if upload existed).",
-                    file_upload.id,
-                    extra={"file_id": file_upload.id, "upload_id": upload_id},
-                )
+            await self._clean_up_upload(
+                upload_id=upload_id, object_id=new_object_id, file_id=file_upload.id
+            )
             raise self.InconclusiveError(err) from err
 
         # Check integrity of final object in S3
@@ -529,19 +500,23 @@ class Interrogator(InterrogatorPort):
                         "reencrypted_object_id": new_object_id,
                     },
                 )
-            log.info(
-                "File %s: Removed object from the '%s' bucket - cleanup complete.",
-                file_upload.id,
-                self._interrogation_bucket_id,
-                extra={
-                    "file_id": file_upload.id,
-                    "reencrypted_object_id": new_object_id,
-                },
-            )
+            else:
+                log.info(
+                    "File %s: Removed object from the '%s' bucket - cleanup complete.",
+                    file_upload.id,
+                    self._interrogation_bucket_id,
+                    extra={
+                        "file_id": file_upload.id,
+                        "reencrypted_object_id": new_object_id,
+                    },
+                )
 
             # This is a problem on our end:
             raise self.InconclusiveError(
-                "Encrypted content checksum did not match the expected value."
+                "Encrypted content checksum did not match the expected value. This"
+                + " indicates that the data S3 received from DHFS is not what DHFS"
+                + " intended to send. This will likely be resolved simply by letting"
+                + " DHFS try to process the file again. Nothing else needs to be done."
             )
 
         # Issue report to Central API containing new encryption secret and checksums
@@ -558,6 +533,25 @@ class Interrogator(InterrogatorPort):
             encrypted_parts_sha256=checksums.encrypted_sha256,
             encrypted_size=file_upload.encrypted_size - file_upload.offset,
         )
+
+    async def _clean_up_upload(self, *, upload_id: str, object_id: str, file_id: UUID4):
+        """Abort the upload and log but otherwise suppress any errors.
+
+        This method is only called as part of a cleanup process, so there is an
+        error already being handled outside of this method. That is why the S3Error
+        is only logged.
+        """
+        try:
+            await self._s3_client.abort_upload(upload_id=upload_id, object_id=object_id)
+        except S3ClientPort.S3Error as abort_err:
+            # Log error but don't raise in order to preserve original error
+            log.error(abort_err)
+        else:
+            log.info(
+                "File %s: Aborted upload as part of cleanup (if upload existed).",
+                file_id,
+                extra={"file_id": file_id, "upload_id": upload_id},
+            )
 
     async def report_success(  # noqa: PLR0913
         self,

@@ -17,7 +17,6 @@
 
 import logging
 
-from dhfs.config import Config
 from dhfs.ports.outbound.central import CentralClientPort
 from dhfs.ports.outbound.cleaner import S3CleanerPort
 from dhfs.ports.outbound.s3 import S3ClientPort
@@ -33,11 +32,9 @@ class S3Cleaner(S3CleanerPort):
     def __init__(
         self,
         *,
-        config: Config,
         central_client: CentralClientPort,
         s3_client: S3ClientPort,
     ):
-        # TODO: config - use it or lose it
         self._central_client = central_client
         self._s3_client = s3_client
 
@@ -54,7 +51,11 @@ class S3Cleaner(S3CleanerPort):
         try:
             object_ids = await self._s3_client.list_files_in_interrogation_bucket()
         except Exception as err:
-            log.error("Failed to fetch current object list: %s", err)
+            log.error(
+                "Cleanup failed because DHFS couldn't get a list of the object IDs"
+                + " currently residing in the interrogation bucket. Error text: %s",
+                err,
+            )
             return
 
         if not object_ids:
@@ -82,7 +83,6 @@ class S3Cleaner(S3CleanerPort):
 
         for object_id in removable_objects:
             try:
-                # Logging done inside .remove_file()
                 await self._s3_client.remove_file(object_id=object_id)
             except Exception:
                 failed_deletions.append(object_id)
@@ -94,4 +94,9 @@ class S3Cleaner(S3CleanerPort):
             " with errors" if failed_deletions else "",
             deleted_count,
             len(failed_deletions),
+            extra=(
+                {"objects_unable_to_delete": failed_deletions}
+                if failed_deletions
+                else {}
+            ),
         )
