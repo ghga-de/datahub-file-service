@@ -516,7 +516,7 @@ class Interrogator(InterrogatorPort):
                 "Encrypted content checksum did not match the expected value. This"
                 + " indicates that the data S3 received from DHFS is not what DHFS"
                 + " intended to send. This will likely be resolved simply by letting"
-                + " DHFS try to process the file again. Nothing needs to be done."
+                + " DHFS try to process the file again. Nothing else needs to be done."
             )
 
         # Issue report to Central API containing new encryption secret and checksums
