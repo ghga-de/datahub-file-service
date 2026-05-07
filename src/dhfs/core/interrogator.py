@@ -97,7 +97,7 @@ class Interrogator(InterrogatorPort):
             except self.ConclusiveError as err:
                 reason = getattr(err, "reason", None) or "Unexpected error"
                 await self.report_failure(file_id=file.id, reason=reason)
-            except (S3ClientPort.S3OperationError, self.InconclusiveError) as err:
+            except self.InconclusiveError as err:
                 log.warning(
                     "File %s: Unable to conclusively process file - will retry later. Reason: %s",
                     file.id,
