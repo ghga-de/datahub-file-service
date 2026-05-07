@@ -15,7 +15,6 @@
 """Service configuration and execution"""
 
 import logging
-import sys
 from asyncio import sleep
 
 from hexkit.log import configure_logging
@@ -57,7 +56,7 @@ async def run_interrogator(forever: bool = True):
                         "DHFS cannot continue processing until the following error is resolved: %s",
                         err,
                     )
-                    sys.exit(1)
+                    return
                 except Exception as err:
                     log.error(
                         "An unhandled exception caused the current batch of file"
