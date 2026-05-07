@@ -54,7 +54,11 @@ class S3Client(S3ClientPort):
         self._httpx_client = httpx_client
 
     async def get_is_file_in_inbox(self, *, file: FileUpload) -> bool:
-        """Return a bool indicating whether the file exists in the inbox"""
+        """Return a bool indicating whether the file exists in the inbox.
+
+        Raises:
+        - BucketNotFoundError if the interrogation bucket doesn't exist.
+        """
         extra = {"inbox_object_id": file.object_id, "inbox_bucket_id": file.bucket_id}
         log.debug(
             "File %s: Verifying that the object exists in the '%s' bucket.",
@@ -62,9 +66,14 @@ class S3Client(S3ClientPort):
             file.bucket_id,
             extra=extra,
         )
-        exists = await self._storage.does_object_exist(
-            bucket_id=file.bucket_id, object_id=str(file.object_id)
-        )
+        try:
+            exists = await self._storage.does_object_exist(
+                bucket_id=file.bucket_id, object_id=str(file.object_id)
+            )
+        except ObjectStorageProtocol.BucketNotFoundError as err:
+            raise self.BucketNotFoundError(
+                bucket_id=self._interrogation_bucket_id
+            ) from err
         if exists:
             log.debug(
                 "File %s: Confirmed that the object exists in the '%s' bucket.",

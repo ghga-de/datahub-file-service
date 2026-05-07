@@ -132,7 +132,11 @@ class S3ClientPort(ABC):
 
     @abstractmethod
     async def get_is_file_in_inbox(self, *, file: FileUpload) -> bool:
-        """Return a bool indicating whether the file exists in the inbox"""
+        """Return a bool indicating whether the file exists in the inbox.
+
+        Raises:
+        - BucketNotFoundError if the interrogation bucket doesn't exist.
+        """
 
     @abstractmethod
     async def list_files_in_interrogation_bucket(self) -> list[str]:
