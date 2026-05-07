@@ -305,13 +305,13 @@ class Interrogator(InterrogatorPort):
                 decrypted_part = self._decrypt_part(
                     encrypted_part=reencrypted_part, secret=new_secret
                 )
-            except Exception:
+            except Exception as err:
                 log.warning(
                     "File %s: A file part seems incorrectly re-encrypted.",
                     file_id,
                     extra=log_extra,
                 )
-                raise
+                raise self.InconclusiveError(err) from err
 
             # Update whole-decrypted-file sha256
             checksums.update_unencrypted(decrypted_part)
