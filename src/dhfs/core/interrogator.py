@@ -89,13 +89,10 @@ class Interrogator(InterrogatorPort):
                         + " found in the inbox"
                     )
                 await self.interrogate_file(file)
-            except (
-                S3ClientPort.CriticalS3Error,
-                CentralClientPort.UpgradeRequiredError,
-            ) as err:
-                raise InterrogatorPort.CriticalError(err) from err
             except self.ConclusiveError as err:
                 reason = getattr(err, "reason", None) or "Unexpected error"
+                # Errors in .report_failure() are logged without re-raising, because
+                #  the solution to the error is simply to move on to the next file
                 await self.report_failure(file_id=file.id, reason=reason)
             except self.InconclusiveError as err:
                 log.warning(
@@ -109,7 +106,7 @@ class Interrogator(InterrogatorPort):
         """Fetch the original file encryption secret.
 
         Raises:
-        - CantCompleteError if the file doesn't exist in the inbox or if the download
+        - InconclusiveError if the file doesn't exist in the inbox or if the download
             request fails.
         - FileEnvelopeDecryptionError if the Crypt4GH envelope cannot be decrypted or
             if the secrets list returned by Crypt4GH is not 1 element long.
@@ -123,10 +120,12 @@ class Interrogator(InterrogatorPort):
             )
         except S3ClientPort.S3OperationError as err:
             raise self.InconclusiveError(err) from err
+        except S3ClientPort.CriticalS3Error as err:
+            raise self.CriticalError(err) from err
 
         try:
             return self._extract_secret(envelope=envelope)
-        except Exception as err:
+        except (crypt4gh.header.CryptoError, ValueError) as err:
             # Failed to decrypt envelope - interrogation failed - no cleanup needed
             raise self.FileEnvelopeDecryptionError() from err
 
@@ -170,15 +169,9 @@ class Interrogator(InterrogatorPort):
                 stop=part_range.stop,
             )
         except S3ClientPort.S3OperationError as err:
-            log.warning(
-                "Object %s: Couldn't fetch file content range.",
-                object_id,
-                extra={
-                    "inbox_object_id": object_id,
-                    "content_range": f"{part_range.start}-{part_range.stop}",
-                },
-            )
             raise self.InconclusiveError(err) from err
+        except S3ClientPort.CriticalS3Error as err:
+            raise self.CriticalError(err) from err
         return self._decrypt_part(encrypted_part=part, secret=secret)
 
     def _decrypt_part(self, *, encrypted_part: bytes, secret: SecretBytes) -> bytes:
@@ -204,6 +197,7 @@ class Interrogator(InterrogatorPort):
                 position += crypt4gh.lib.CIPHER_SEGMENT_SIZE
             return bytes(buffer)
         except Exception as err:
+            # We do a catch-all here on purpose - decrypt_algo can raise several error types
             raise self.DecryptionError() from err
 
     def _reencrypt_part(
@@ -227,7 +221,7 @@ class Interrogator(InterrogatorPort):
 
         return bytes(buffer)
 
-    async def _process_file_parts(
+    async def _process_file_parts(  # noqa: C901, PLR0915
         self,
         *,
         file_upload: FileUpload,
@@ -270,6 +264,7 @@ class Interrogator(InterrogatorPort):
         ):
             log.debug("File %s: Processing part %s.", file_id, part_no)
             log_extra["file_part_number"] = part_no
+            log_extra["content_range"] = f"{part_range.start}-{part_range.stop}"
 
             # Initial decryption
             try:
@@ -279,13 +274,22 @@ class Interrogator(InterrogatorPort):
                     part_range=part_range,
                     secret=old_secret,
                 )
-            except Exception:
+            except Exception as err:
+                # Catch-all is intentional, see comments below
                 log.warning(
-                    "File %s: Failed to get and decrypt next file part.",
+                    "File %s: Failed to get and decrypt part number %i.",
                     file_id,
+                    part_no,
                     extra=log_extra,
                 )
-                raise
+                # If we've already translate the underlying error, just re-raise as is
+                if isinstance(err, (self.InconclusiveError, self.ConclusiveError)):
+                    raise
+                if isinstance(err, S3ClientPort.CriticalS3Error):
+                    raise self.CriticalError(err) from err
+                # Otherwise, translate to inconclusive error - we don't know what went
+                #  wrong and didn't expect it, so we can't conclude that the file is bad
+                raise self.InconclusiveError(err) from err
 
             # Re-encrypt
             try:
@@ -340,6 +344,8 @@ class Interrogator(InterrogatorPort):
                     uploaded_part_number += 1
                 except S3ClientPort.S3OperationError as err:
                     raise self.InconclusiveError(err) from err
+                except S3ClientPort.CriticalS3Error as err:
+                    raise self.CriticalError(err) from err
 
                 # Set buffer to whatever the remainder was
                 upload_buffer = upload_buffer[file_upload.adjusted_part_size :]
@@ -364,6 +370,8 @@ class Interrogator(InterrogatorPort):
                 )
             except S3ClientPort.S3OperationError as err:
                 raise self.InconclusiveError(err) from err
+            except S3ClientPort.CriticalS3Error as err:
+                raise self.CriticalError(err) from err
 
         log.debug(
             "File %s: All %i file part(s) uploaded to S3.",
@@ -414,6 +422,8 @@ class Interrogator(InterrogatorPort):
             )
         except S3ClientPort.S3OperationError as err:
             raise self.InconclusiveError(err) from err
+        except S3ClientPort.CriticalS3Error as err:
+            raise self.CriticalError(err) from err
 
         # Generate new file encryption secret
         new_secret = SecretBytes(os.urandom(ENCRYPTION_SECRET_LENGTH))
@@ -470,6 +480,8 @@ class Interrogator(InterrogatorPort):
                 upload_id,
                 new_object_id,
             )
+        except S3ClientPort.CriticalS3Error as err:
+            raise self.CriticalError(err) from err
         except S3ClientPort.S3Error as err:
             await self._clean_up_upload(
                 upload_id=upload_id, object_id=new_object_id, file_id=file_upload.id
@@ -584,8 +596,13 @@ class Interrogator(InterrogatorPort):
         )
         try:
             await self._central_client.submit_interrogation_report(report=report)
+        except CentralClientPort.UpgradeRequiredError as err:
+            raise InterrogatorPort.CriticalError(err) from err
         except Exception:
             # The file is not deleted on the off-chance that FIS did actually receive it
+            #  Also, this is not re-raised as an InconclusiveError because it WAS
+            #  successfully processed - there was just a problem with sending the report
+            # This log is the last log in the loop - the
             log.error(
                 "File %s: Failed to submit file processing report to GHGA Central."
                 + " DHFS will try re-processing this file later.",
@@ -607,7 +624,11 @@ class Interrogator(InterrogatorPort):
         )
         try:
             await self._central_client.submit_interrogation_report(report=report)
+        except CentralClientPort.UpgradeRequiredError as err:
+            raise InterrogatorPort.CriticalError(err) from err
         except Exception:
+            # This is logged without re-raising, because the solution is simply
+            #  to move on to the next file.
             log.error(
                 "File %s: Failed to submit file processing report to GHGA Central."
                 + " DHFS will try re-processing this file later.",
