@@ -125,7 +125,7 @@ class Interrogator(InterrogatorPort):
 
         try:
             return self._extract_secret(envelope=envelope)
-        except (crypt4gh.header.CryptoError, ValueError) as err:
+        except ValueError as err:
             # Failed to decrypt envelope - interrogation failed - no cleanup needed
             raise self.FileEnvelopeDecryptionError() from err
 
@@ -133,8 +133,8 @@ class Interrogator(InterrogatorPort):
         """Extract file encryption/decryption secret from envelope.
 
         Raises:
-        - CryptoError if the envelope cannot be decrypted with the data hub's private key.
-        - ValueError if the secrets list returned by Crypt4GH is not 1 element long.
+        - ValueError if the envelope cannot be decrypted with the data hub's private
+            key or if the secrets list returned by Crypt4GH is not 1 element long.
         """
         envelope_stream = io.BytesIO(envelope)
         keys = [(0, self._data_hub_private_key.get_secret_value(), None)]

@@ -5,3 +5,4 @@
 
 # additional requirements can be listed here
 testcontainers[kafka,mongo]>=4.13
+ghga-service-commons[crypt]
