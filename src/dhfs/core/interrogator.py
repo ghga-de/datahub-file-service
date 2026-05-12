@@ -60,7 +60,7 @@ class Interrogator(InterrogatorPort):
         self._data_hub_private_key = SecretBytes(
             get_private_key(
                 config.data_hub_crypt4gh_private_key_path,
-                lambda: config.crypt4gh_private_key_passphrase,
+                lambda: config.data_hub_crypt4gh_private_key_passphrase,
             )
         )
         self._s3_client = s3_client
