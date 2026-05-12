@@ -143,7 +143,9 @@ class Interrogator(InterrogatorPort):
         )
         if (count := len(session_keys)) != 1:
             raise ValueError(f"Expected session key count to be 1, not {count}")
-        return SecretBytes(session_keys[0])
+
+        # crypt4gh v1.8.6 returns session key as bytearray instead of bytes
+        return SecretBytes(bytes(session_keys[0]))
 
     async def _fetch_and_decrypt_part(
         self,
