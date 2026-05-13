@@ -343,9 +343,9 @@ h11==0.16.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   httpcore
-hexkit==8.1.0 \
-    --hash=sha256:c7d3476e606769a887a95004261043a3b4b852b2d6980b4655bb5b30cbfa5044 \
-    --hash=sha256:ee54ed2a3892241bb4534c9a1fc2b86b37081f04391abdc27e170938841ab3c0
+hexkit==8.2.0 \
+    --hash=sha256:8dfc97eb27a35410fef46064794f86e37a7270a55fc1ab8f927a276e1d607ac4 \
+    --hash=sha256:a9b17d5cc56dff57aaa1fca2d0fb9057a1ed96044ddbc909c8e41a4b4e69525c
     # via
     #   -c lock/requirements-dev.txt
     #   dhfs (pyproject.toml)
@@ -368,9 +368,9 @@ httpx==0.28.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-service-commons
-idna==3.14 \
-    --hash=sha256:466d810d7a2cc1022bea9b037c39728d51ae7dad40d480fc9b7d7ecf98ba8ee3 \
-    --hash=sha256:e677eaf072e290f7b725f9acf0b3a2bd55f9fd6f7c70abe5f0e34823d0accf69
+idna==3.15 \
+    --hash=sha256:048adeaf8c2d788c40fee287673ccaa74c24ffd8dcf09ffa555a2fbb59f10ac8 \
+    --hash=sha256:ca962446ea538f7092a95e057da437618e886f4d349216d2b1e294abfdb65fdc
     # via
     #   -c lock/requirements-dev.txt
     #   anyio
