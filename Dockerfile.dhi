@@ -54,3 +54,4 @@ COPY --from=dep-builder /usr/bin/dhfs /usr/local/bin/dhfs
 ENV PYTHONUNBUFFERED=1
 
 ENTRYPOINT ["dhfs"]
+CMD ["interrogate"]
