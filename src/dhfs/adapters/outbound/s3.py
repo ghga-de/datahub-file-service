@@ -254,14 +254,15 @@ class S3Client(S3ClientPort):
     ) -> str:
         """Retrieve a presigned part upload URL for a given file part"""
         # Convert MD5 to base64 for S3
-        md5_base64 = base64.b64encode(part_md5).decode()
+        # TODO: Re-enable this later
+        # md5_base64 = base64.b64encode(part_md5).decode()
         try:
             return await self._storage.get_part_upload_url(
                 upload_id=upload_id,
                 bucket_id=self._interrogation_bucket_id,
                 object_id=object_id,
                 part_number=part_no,
-                part_md5=md5_base64,
+                # part_md5=md5_base64,
             )
         except ObjectStorageProtocol.BucketNotFoundError as err:
             bucket_error = self.BucketNotFoundError(
@@ -294,12 +295,31 @@ class S3Client(S3ClientPort):
             part_md5=part_md5,
         )
 
+        log.warning("Part MD5 is not supplied for this PUT operation")
+
         try:
             log.debug("Object %s: Uploading part number %i.", object_id, part_no)
             response = await self._httpx_client.put(upload_url, content=part)
         except RetryError as retry_error:
             check_for_request_errors(retry_error, upload_url)
             response = retry_error.last_attempt.result()
+
+        parts = await self._storage.list_parts(
+            bucket_id=self._interrogation_bucket_id,
+            object_id=object_id,
+            upload_id=upload_id,
+            max_parts=1,
+            first_part_no=part_no,
+        )
+        actual_etag = parts[0]["ETag"]
+        b64_md5 = base64.b64encode(part_md5).decode()
+        log.info(
+            "S3 backend calculated %s as the etag for part %i. Our calculation was %s, encoded as %s.",
+            actual_etag,
+            part_no,
+            part_md5,
+            b64_md5,
+        )
 
         if response.status_code != 200:
             status_code = response.status_code
