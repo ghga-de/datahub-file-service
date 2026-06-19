@@ -32,6 +32,7 @@ from nacl.bindings import (
 )
 from pydantic import UUID4, SecretBytes
 
+from dhfs.adapters.outbound.http import ConnectionFailedError
 from dhfs.config import Config
 from dhfs.constants import ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH
 from dhfs.core.checksums import Checksums
@@ -78,6 +79,9 @@ class Interrogator(InterrogatorPort):
             new_files = await self._central_client.fetch_new_uploads()
         except CentralClientPort.UpgradeRequiredError as err:
             raise self.CriticalError(err) from err
+        except ConnectionFailedError as err:
+            log.error("Unable to reach the GHGA Central API (%s).", str(err))
+            return
 
         log.info("Received a batch of %i file(s) to process.", len(new_files))
         for file in new_files:
@@ -598,6 +602,10 @@ class Interrogator(InterrogatorPort):
         )
         try:
             await self._central_client.submit_interrogation_report(report=report)
+        except ConnectionFailedError as err:
+            raise InterrogatorPort.InconclusiveError(
+                f"Unable to reach the GHGA Central API ({err})."
+            ) from err
         except CentralClientPort.UpgradeRequiredError as err:
             raise InterrogatorPort.CriticalError(err) from err
         except Exception:

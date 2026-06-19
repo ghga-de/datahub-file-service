@@ -17,6 +17,7 @@
 
 import logging
 
+from dhfs.adapters.outbound.http import ConnectionFailedError
 from dhfs.ports.outbound.central import CentralClientPort
 from dhfs.ports.outbound.cleaner import S3CleanerPort
 from dhfs.ports.outbound.s3 import S3ClientPort
@@ -69,6 +70,9 @@ class S3Cleaner(S3CleanerPort):
             removable_objects = await self._central_client.get_removable_files(
                 object_ids=object_ids
             )
+        except ConnectionFailedError as err:
+            log.error("Unable to reach the GHGA Central API (%s).", str(err))
+            return
         except Exception as err:
             log.error("Failed to determine which objects can be removed: %s", err)
             return
