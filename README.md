@@ -75,6 +75,24 @@ The service requires the following configuration parameters:
 - <a id="properties/per_request_jitter"></a>**`per_request_jitter`** *(number)*: Max amount of jitter (in seconds) to add to each request. Minimum: `0`. Default: `0.0`.
 - <a id="properties/retry_after_applicable_for_num_requests"></a>**`retry_after_applicable_for_num_requests`** *(integer)*: Amount of requests after which the stored delay from a 429 response is ignored again. Can be useful to adjust if concurrent requests are fired in quick succession. Exclusive minimum: `0`. Default: `1`.
 - <a id="properties/http_request_timeout_seconds"></a>**`http_request_timeout_seconds`** *(number)*: Request timeout setting in seconds. Default: `60.0`.
+- <a id="properties/inbox_write_s3_access_key_id"></a>**`inbox_write_s3_access_key_id`**: S3 access key ID with write access to the inbox bucket. Only needed for running `dhfs verify-backend`. Default: `null`.
+  - **Any of**
+    - <a id="properties/inbox_write_s3_access_key_id/anyOf/0"></a>*string*
+    - <a id="properties/inbox_write_s3_access_key_id/anyOf/1"></a>*null*
+
+  Examples:
+  ```json
+  "my-write-access-key-id"
+  ```
+
+- <a id="properties/inbox_write_s3_secret_access_key"></a>**`inbox_write_s3_secret_access_key`**: S3 secret access key with write access to the inbox bucket. Only needed for running `dhfs verify-backend`. Default: `null`.
+  - **Any of**
+    - <a id="properties/inbox_write_s3_secret_access_key/anyOf/0"></a>*string, format: password*
+    - <a id="properties/inbox_write_s3_secret_access_key/anyOf/1"></a>*null*
+- <a id="properties/inbox_write_s3_session_token"></a>**`inbox_write_s3_session_token`**: Optional S3 session token for the write-capable inbox credentials. Only needed for running `dhfs verify-backend`. Default: `null`.
+  - **Any of**
+    - <a id="properties/inbox_write_s3_session_token/anyOf/0"></a>*string, format: password*
+    - <a id="properties/inbox_write_s3_session_token/anyOf/1"></a>*null*
 - <a id="properties/data_hub_crypt4gh_private_key_path"></a>**`data_hub_crypt4gh_private_key_path`** *(string, format: path, required)*: Path to the Data Hub's Crypt4GH private key file.
 
   Examples:
@@ -86,6 +104,30 @@ The service requires the following configuration parameters:
   - **Any of**
     - <a id="properties/data_hub_crypt4gh_private_key_passphrase/anyOf/0"></a>*string*
     - <a id="properties/data_hub_crypt4gh_private_key_passphrase/anyOf/1"></a>*null*
+- <a id="properties/data_hub_crypt4gh_public_key_path"></a>**`data_hub_crypt4gh_public_key_path`**: Path to the Data Hub's Crypt4GH public key file. Only needed for running `dhfs verify-backend`. Default: `null`.
+  - **Any of**
+    - <a id="properties/data_hub_crypt4gh_public_key_path/anyOf/0"></a>*string, format: path*
+    - <a id="properties/data_hub_crypt4gh_public_key_path/anyOf/1"></a>*null*
+
+  Examples:
+  ```json
+  "./key.pub"
+  ```
+
+- <a id="properties/inbox_bucket_id"></a>**`inbox_bucket_id`**: The inbox bucket ID - only needed for running `dhfs verify-backend`. Default: `null`.
+  - **Any of**
+    - <a id="properties/inbox_bucket_id/anyOf/0"></a>*string*
+    - <a id="properties/inbox_bucket_id/anyOf/1"></a>*null*
+
+  Examples:
+  ```json
+  "inbox"
+  ```
+
+  ```json
+  "hub-inbox"
+  ```
+
 - <a id="properties/central_api_crypt4gh_public_key"></a>**`central_api_crypt4gh_public_key`** *(string, required)*: The Crypt4GH public key used by the Central API. This is used to encrypt new file encryption secrets.
 - <a id="properties/central_api_url"></a>**`central_api_url`** *(string, format: uri, required)*: The base URL used to connect to to the GHGA Central API. Length must be between 1 and 2083 (inclusive).
 - <a id="properties/data_hub_signing_key"></a>**`data_hub_signing_key`** *(string, format: password, required and write-only)*: The Data Hub's private JWK for signing JWT auth tokens.
