@@ -213,7 +213,7 @@ async def test_central_api_unreachable(joint_fixture: JointFixture, caplog):
 
     with caplog.at_level("ERROR"):
         await joint_fixture.s3_cleaner.scan_and_clean()
-    assert "Failed to determine which objects can be removed" in caplog.text
+    assert "Unable to reach the GHGA Central API" in caplog.text
 
     # Verify that no files were deleted (operation failed before deletion)
     remaining_files = await joint_fixture.s3.storage.list_all_object_ids(interrogation)
