@@ -490,15 +490,17 @@ async def test_etag_doesnt_match_local_md5(
     )
 
 
+@pytest.mark.parametrize("status_code", [400, 404, 409, 500])
 async def test_central_api_error_on_fetch_new_files(
     joint_fixture: JointFixture,
     httpx_mock: HTTPXMock,
+    status_code: int,
     caplog,
 ):
     """Test that a non-200 response from fetch_new_uploads is logged explicitly."""
     config = joint_fixture.config
     url = f"{config.central_api_url}/storages/{config.storage_alias}/uploads"
-    httpx_mock.add_response(url=url, status_code=500)
+    httpx_mock.add_response(url=url, status_code=status_code)
 
     with caplog.at_level("ERROR"):
         await joint_fixture.interrogator.interrogate_new_files()
@@ -526,9 +528,11 @@ async def test_central_api_bad_format_on_fetch_new_files(
     )
 
 
+@pytest.mark.parametrize("status_code", [400, 404, 409, 500])
 async def test_central_api_error_on_report_success(
     joint_fixture: JointFixture,
     httpx_mock: HTTPXMock,
+    status_code: int,
     caplog,
 ):
     """Test that a non-201 response from submit_interrogation_report in
@@ -536,7 +540,7 @@ async def test_central_api_error_on_report_success(
     """
     config = joint_fixture.config
     url = f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports"
-    httpx_mock.add_response(url=url, status_code=500)
+    httpx_mock.add_response(url=url, status_code=status_code)
 
     with caplog.at_level("ERROR"):
         await joint_fixture.interrogator.report_success(
@@ -555,9 +559,11 @@ async def test_central_api_error_on_report_success(
     )
 
 
+@pytest.mark.parametrize("status_code", [400, 404, 409, 500])
 async def test_central_api_error_on_report_failure(
     joint_fixture: JointFixture,
     httpx_mock: HTTPXMock,
+    status_code: int,
     caplog,
 ):
     """Test that a non-201 response from submit_interrogation_report in
@@ -565,7 +571,7 @@ async def test_central_api_error_on_report_failure(
     """
     config = joint_fixture.config
     url = f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports"
-    httpx_mock.add_response(url=url, status_code=500)
+    httpx_mock.add_response(url=url, status_code=status_code)
 
     with caplog.at_level("ERROR"):
         await joint_fixture.interrogator.report_failure(
