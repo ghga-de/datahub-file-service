@@ -39,7 +39,7 @@ class S3Cleaner(S3CleanerPort):
         self._central_client = central_client
         self._s3_client = s3_client
 
-    async def scan_and_clean(self):
+    async def scan_and_clean(self):  # noqa: C901, PLR0911
         """Get a list of all objects in the 'interrogation' bucket, then query the
         GHGA Central API and delete the objects which that API says may be deleted.
 
@@ -72,6 +72,14 @@ class S3Cleaner(S3CleanerPort):
             )
         except ConnectionFailedError as err:
             log.error("Unable to reach the GHGA Central API (%s).", str(err))
+            return
+        except CentralClientPort.CentralAPIError as err:
+            log.error("The GHGA Central API returned an error response: %s", err)
+            return
+        except CentralClientPort.ResponseFormatError as err:
+            log.error(
+                "The GHGA Central API returned an unrecognized response format: %s", err
+            )
             return
         except Exception as err:
             log.error("Failed to determine which objects can be removed: %s", err)

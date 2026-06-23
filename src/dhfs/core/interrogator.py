@@ -82,6 +82,14 @@ class Interrogator(InterrogatorPort):
         except ConnectionFailedError as err:
             log.error("Unable to reach the GHGA Central API (%s).", str(err))
             return
+        except CentralClientPort.CentralAPIError as err:
+            log.error("The GHGA Central API returned an error response: %s", err)
+            return
+        except CentralClientPort.ResponseFormatError as err:
+            log.error(
+                "The GHGA Central API returned an unrecognized response format: %s", err
+            )
+            return
 
         log.info("Received a batch of %i file(s) to process.", len(new_files))
         for file in new_files:
@@ -608,11 +616,21 @@ class Interrogator(InterrogatorPort):
             ) from err
         except CentralClientPort.UpgradeRequiredError as err:
             raise InterrogatorPort.CriticalError(err) from err
+        # Unlike ConnectionFailedError (report definitely not delivered), these
+        # errors require a completed HTTP round-trip, so Central may have processed
+        # the report despite returning an error. Raising an InconclusiveError
+        # would re-interrogate the file with a different secret, so we log and let
+        # the natural retry cycle handle it.
+        except CentralClientPort.CentralAPIError as err:
+            log.error(
+                "File %s: The GHGA Central API returned an error response while"
+                " submitting the interrogation report: %s."
+                " DHFS will try re-processing this file later.",
+                file_id,
+                err,
+            )
         except Exception:
-            # The file is not deleted on the off-chance that FIS did actually receive it
-            #  Also, this is not re-raised as an InconclusiveError because it WAS
-            #  successfully processed - there was just a problem with sending the report
-            # This log is the last log in the loop - the
+            # Same reasoning as CentralAPIError above.
             log.error(
                 "File %s: Failed to submit file processing report to GHGA Central."
                 + " DHFS will try re-processing this file later.",
@@ -636,6 +654,21 @@ class Interrogator(InterrogatorPort):
             await self._central_client.submit_interrogation_report(report=report)
         except CentralClientPort.UpgradeRequiredError as err:
             raise InterrogatorPort.CriticalError(err) from err
+        except ConnectionFailedError as err:
+            log.error(
+                "File %s: Unable to reach the GHGA Central API while submitting the"
+                " failure report (%s). DHFS will try re-processing this file later.",
+                file_id,
+                err,
+            )
+        except CentralClientPort.CentralAPIError as err:
+            log.error(
+                "File %s: The GHGA Central API returned an error response while"
+                " submitting the interrogation report: %s."
+                " DHFS will try re-processing this file later.",
+                file_id,
+                err,
+            )
         except Exception:
             # This is logged without re-raising, because the solution is simply
             #  to move on to the next file.
