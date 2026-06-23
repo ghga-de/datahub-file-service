@@ -550,7 +550,7 @@ async def test_central_api_error_on_report_success(
         )
 
     assert (
-        "The GHGA Central API returned an error response while submitting the interrogation report"
+        "The GHGA Central API returned an error response while submitting the file processing report"
         in caplog.text
     )
 
@@ -573,7 +573,7 @@ async def test_central_api_error_on_report_failure(
         )
 
     assert (
-        "The GHGA Central API returned an error response while submitting the interrogation report"
+        "The GHGA Central API returned an error response while submitting the file processing report"
         in caplog.text
     )
 
@@ -591,6 +591,6 @@ async def test_connection_failed_on_report_failure(
         )
 
     assert (
-        "Unable to reach the GHGA Central API while submitting the interrogation report"
+        "Unable to reach the GHGA Central API while submitting the file processing report"
         in caplog.text
     )
