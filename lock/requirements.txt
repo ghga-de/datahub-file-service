@@ -10,9 +10,9 @@ annotated-types==0.7.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   pydantic
-anyio==4.14.0 \
-    --hash=sha256:b47c1f9ccf73e67021df785332508f99379c68fa7d0684e8e3492cb1d4b23f89 \
-    --hash=sha256:dd9b7a2a9799ed6552fde617b2c5df02b7fdd7d88392fc48101e51bae46164d9
+anyio==4.14.1 \
+    --hash=sha256:4e5533c5b8ff0a24f5d7a176cbe6877129cd183893f66b537f8f227d10527d72 \
+    --hash=sha256:8d648a3544c1a700e3ff78615cd679e4c5c3f149904287e73687b2596963629e
     # via
     #   -c lock/requirements-dev.txt
     #   anysqlite
@@ -97,15 +97,15 @@ bcrypt==5.0.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   crypt4gh
-boto3==1.43.33 \
-    --hash=sha256:97b563127f7678ad20249f9bf99877b7a3a78f6fcdcf222c6e25d27d4406ce0d \
-    --hash=sha256:da6e400b2d11eb041fbbb2743ef3ffe6540889676ffdff0e628628e9b4f04cde
+boto3==1.43.36 \
+    --hash=sha256:42942dde254673abcbc9e6e60017c88341a4f49d99d24e1f2e290fb38138c26f \
+    --hash=sha256:587d7ee92a12e440ad12b0e7f11f3358f0c4d65b19f64726efc94aaf194aff28
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
-botocore==1.43.33 \
-    --hash=sha256:4292bb2cc645e5cb404515c54b5b164563f2b4218c52aeee3f1ce851724e177a \
-    --hash=sha256:74b3d5626ebeb2677fac1ca12ac975faf328e54349ceb4dcda17f50674d5b9b4
+botocore==1.43.36 \
+    --hash=sha256:3c65fdc39ed01d8dfde1e961b34038aed03c459f8ddf80717a12ac006475e49d \
+    --hash=sha256:4cae47d1b2d426316b85a0087d9e69e048f13bc003b5177d74639fe9dfd28205
     # via
     #   -c lock/requirements-dev.txt
     #   boto3
@@ -324,9 +324,9 @@ email-validator==2.3.0 \
     # via
     #   -c lock/requirements-dev.txt
     #   pydantic
-ghga-service-commons==7.0.2 \
-    --hash=sha256:c3710e1f8aa628e760335732e676d9716a83a2166fc3799b5df1dd8b8952b3c5 \
-    --hash=sha256:c7d59fd632cb3e5c0a1da13f7997acef4186dc03821a859c69ffe95173cd230f
+ghga-service-commons==7.0.4 \
+    --hash=sha256:3f12718eb5e5d279e3f57b80f0a1677be2b5d635d12e45d0e878f3ecaaec1d0e \
+    --hash=sha256:f3457d2b2081aef18c2f83299d53344efe8089ec77ca7e9ab7abbb1e4641cf86
     # via
     #   -c lock/requirements-dev.txt
     #   dhfs (pyproject.toml)
@@ -376,9 +376,9 @@ jmespath==1.1.0 \
     #   -c lock/requirements-dev.txt
     #   boto3
     #   botocore
-jwcrypto==1.5.7 \
-    --hash=sha256:70204d7cca406eda8c82352e3c41ba2d946610dafd19e54403f0a1f4f18633c6 \
-    --hash=sha256:729463fefe28b6de5cf1ebfda3e94f1a1b41d2799148ef98a01cb9678ebe2bb0
+jwcrypto==1.5.8 \
+    --hash=sha256:85aeb475f808d56bbc2f2ed1f6f73e6a317c4011a4321505f02f0aed695a3742 \
+    --hash=sha256:c3d7114b6f6e65b52f6b7da817eb8cb8423e1da31e1ef13508447c81ecbdcc34
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-service-commons
@@ -464,9 +464,9 @@ msgpack==1.2.1 \
     # via
     #   -c lock/requirements-dev.txt
     #   hishel
-opentelemetry-api==1.42.1 \
-    --hash=sha256:51a69edacadbc03a8950ace1c4c21099cacc538820ac2c9e36277e78cebba714 \
-    --hash=sha256:56c63bea9f77b62856be8c47600474acad853b2924b99b1687c4cb6297166716
+opentelemetry-api==1.43.0 \
+    --hash=sha256:107d0d03857ea8fc7c5fcbbbd83f800c281f0d560553d61c1d675fccfd1761c1 \
+    --hash=sha256:20acf45e9b21851926835292e4045d290acade1edd2ff3de86d2f069687ba1fd
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
@@ -608,9 +608,9 @@ pydantic-core==2.46.4 \
     # via
     #   -c lock/requirements-dev.txt
     #   pydantic
-pydantic-settings==2.14.1 \
-    --hash=sha256:6e3c7edfd8277687cdc598f56e5cff0e9bfff0910a3749deaa8d4401c3a2b9de \
-    --hash=sha256:e874d3bec7e787b0c9958277956ed9b4dd5de6a80e162188fdaff7c5e26fd5fa
+pydantic-settings==2.14.2 \
+    --hash=sha256:a20c97b37910b6550d5ea50fbcc2d4187defe58cd57070b73863d069419c9440 \
+    --hash=sha256:c19dd64b19097f1de80184f0cc7b0272a13ae6e170cbf240a3e27e381ed14a5f
     # via
     #   -c lock/requirements-dev.txt
     #   hexkit
@@ -768,9 +768,9 @@ tenacity==9.1.4 \
     # via
     #   -c lock/requirements-dev.txt
     #   ghga-service-commons
-typer==0.26.7 \
-    --hash=sha256:5c87cfbc5d34491c5346ebf49c23e18d56ccb863268d3a8d592b26087c2f5e58 \
-    --hash=sha256:e314a34c617e419c091b2830dda3ea1f257134ff593061a8f5b9717ab8dddb3a
+typer==0.26.8 \
+    --hash=sha256:3512ca79ac5c11113414b36e80281b872884477722440691c89d1112e321a49c \
+    --hash=sha256:c244a6bd558886fe3f8780efb6bdd28bb9aff005a94eedebaa5cb32926fe2f7e
     # via
     #   -c lock/requirements-dev.txt
     #   dhfs (pyproject.toml)
