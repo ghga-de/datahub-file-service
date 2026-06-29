@@ -48,7 +48,7 @@ pytestmark = [
 
 
 async def test_interrogate_new_files(
-    joint_fixture: JointFixture, httpx_mock: HTTPXMock
+    joint_fixture: JointFixture, httpx_mock: HTTPXMock, caplog
 ):
     """Test the interrogation process for a single file"""
     # Create the inbox bucket
@@ -110,7 +110,8 @@ async def test_interrogate_new_files(
     httpx_mock.add_callback(capture_report, url=url_for_reports)
 
     # Process all files
-    await joint_fixture.interrogator.interrogate_new_files()
+    with caplog.at_level("INFO"):
+        await joint_fixture.interrogator.interrogate_new_files()
 
     # Check the interrogation bucket
     s3_client: S3Client = joint_fixture.interrogator._s3_client  # type: ignore
@@ -137,6 +138,20 @@ async def test_interrogate_new_files(
         assert len(report["encrypted_parts_md5"]) > 0
         assert isinstance(report["encrypted_parts_sha256"], list)
         assert len(report["encrypted_parts_sha256"]) > 0
+
+    # Verify the per-file re-encryption completion log was emitted for each file,
+    # including duration and throughput
+    completion_logs = [
+        record
+        for record in caplog.records
+        if "Decryption/re-encryption completed in" in record.message
+    ]
+    assert len(completion_logs) == len(file_uploads), (
+        "Expected one re-encryption completion log per file"
+    )
+    for log_record in completion_logs:
+        assert "seconds" in log_record.message
+        assert "MB/s" in log_record.message
 
 
 async def test_report_failure(joint_fixture: JointFixture, httpx_mock: HTTPXMock):

@@ -18,6 +18,7 @@
 import io
 import logging
 import os
+import time
 from uuid import UUID, uuid4
 
 import crypt4gh.header
@@ -450,6 +451,7 @@ class Interrogator(InterrogatorPort):
                 "File %s: Starting decryption/re-encryption process.",
                 file_upload.id,
             )
+            reencryption_start = time.monotonic()
             # Error translation handled inside ._process_file_parts()
             checksums = await self._process_file_parts(
                 file_upload=file_upload,
@@ -457,6 +459,16 @@ class Interrogator(InterrogatorPort):
                 upload_id=upload_id,
                 old_secret=old_secret,
                 new_secret=new_secret,
+            )
+            reencryption_duration = time.monotonic() - reencryption_start
+            reencryption_speed_mb_per_s = (
+                file_upload.decrypted_size / 1_000_000 / reencryption_duration
+            )
+            log.info(
+                "File %s: Decryption/re-encryption completed in %.2f seconds (%.2f MB/s).",
+                file_upload.id,
+                reencryption_duration,
+                reencryption_speed_mb_per_s,
             )
         except Exception:  # all exceptions require aborting the upload, just re-raise
             await self._clean_up_upload(
