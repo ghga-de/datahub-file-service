@@ -395,8 +395,8 @@ class Interrogator(InterrogatorPort):
 
         _size_mb = file_upload.decrypted_size / 1_000_000
 
-        def _throughput(elapsed: float) -> float:
-            return round(_size_mb / elapsed) if elapsed > 0 else 0.0
+        def _throughput(elapsed: float) -> int:
+            return round(_size_mb / elapsed) if elapsed > 0 else 0
 
         _total = (
             time_download + time_decrypt + time_reencrypt + time_verify + time_upload

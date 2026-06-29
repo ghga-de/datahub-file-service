@@ -148,24 +148,30 @@ async def test_interrogate_new_files(
     assert len(phase_timing_logs) == len(file_uploads), (
         "Expected one phase-timing log per file"
     )
-    expected_fields = (
+    expected_float_fields = (
         "download_s",
-        "download_mb_per_s",
         "decrypt_s",
-        "decrypt_mb_per_s",
         "reencrypt_s",
-        "reencrypt_mb_per_s",
         "verify_s",
-        "verify_mb_per_s",
         "upload_s",
-        "upload_mb_per_s",
         "total_s",
+    )
+    for log_record in phase_timing_logs:
+        for field in expected_float_fields:
+            assert hasattr(log_record, field), f"Missing structured field: {field}"
+            assert isinstance(getattr(log_record, field), float)
+    expected_int_fields = (
+        "download_mb_per_s",
+        "decrypt_mb_per_s",
+        "reencrypt_mb_per_s",
+        "verify_mb_per_s",
+        "upload_mb_per_s",
         "total_mb_per_s",
     )
     for log_record in phase_timing_logs:
-        for field in expected_fields:
+        for field in expected_int_fields:
             assert hasattr(log_record, field), f"Missing structured field: {field}"
-            assert isinstance(getattr(log_record, field), float)
+            assert isinstance(getattr(log_record, field), int)
 
 
 async def test_report_failure(joint_fixture: JointFixture, httpx_mock: HTTPXMock):
