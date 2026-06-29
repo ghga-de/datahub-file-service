@@ -139,19 +139,33 @@ async def test_interrogate_new_files(
         assert isinstance(report["encrypted_parts_sha256"], list)
         assert len(report["encrypted_parts_sha256"]) > 0
 
-    # Verify the per-file re-encryption completion log was emitted for each file,
-    # including duration and throughput
-    completion_logs = [
+    # Verify the per-file phase-timing log was emitted for each file
+    phase_timing_logs = [
         record
         for record in caplog.records
-        if "Decryption/re-encryption completed in" in record.message
+        if "Re-encryption process complete" in record.message
     ]
-    assert len(completion_logs) == len(file_uploads), (
-        "Expected one re-encryption completion log per file"
+    assert len(phase_timing_logs) == len(file_uploads), (
+        "Expected one phase-timing log per file"
     )
-    for log_record in completion_logs:
-        assert "seconds" in log_record.message
-        assert "MB/s" in log_record.message
+    expected_fields = (
+        "download_s",
+        "download_mb_per_s",
+        "decrypt_s",
+        "decrypt_mb_per_s",
+        "reencrypt_s",
+        "reencrypt_mb_per_s",
+        "verify_s",
+        "verify_mb_per_s",
+        "upload_s",
+        "upload_mb_per_s",
+        "total_s",
+        "total_mb_per_s",
+    )
+    for log_record in phase_timing_logs:
+        for field in expected_fields:
+            assert hasattr(log_record, field), f"Missing structured field: {field}"
+            assert isinstance(getattr(log_record, field), float)
 
 
 async def test_report_failure(joint_fixture: JointFixture, httpx_mock: HTTPXMock):
