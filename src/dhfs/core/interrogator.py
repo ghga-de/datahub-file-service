@@ -393,10 +393,10 @@ class Interrogator(InterrogatorPort):
             except S3ClientPort.CriticalS3Error as err:
                 raise self.CriticalError(err) from err
 
-        _size_mb = file_upload.decrypted_size / 1_000_000
+        _size_mib = file_upload.decrypted_size / (1024**2)
 
         def _throughput(elapsed: float) -> int:
-            return round(_size_mb / elapsed) if elapsed > 0 else 0
+            return round(_size_mib / elapsed) if elapsed > 0 else 0
 
         _total = (
             time_download + time_decrypt + time_reencrypt + time_verify + time_upload
@@ -406,17 +406,17 @@ class Interrogator(InterrogatorPort):
             file_id,
             extra={
                 "download_s": round(time_download, 3),
-                "download_mb_per_s": _throughput(time_download),
+                "download_mib_per_s": _throughput(time_download),
                 "decrypt_s": round(time_decrypt, 3),
-                "decrypt_mb_per_s": _throughput(time_decrypt),
+                "decrypt_mib_per_s": _throughput(time_decrypt),
                 "reencrypt_s": round(time_reencrypt, 3),
-                "reencrypt_mb_per_s": _throughput(time_reencrypt),
+                "reencrypt_mib_per_s": _throughput(time_reencrypt),
                 "verify_s": round(time_verify, 3),
-                "verify_mb_per_s": _throughput(time_verify),
+                "verify_mib_per_s": _throughput(time_verify),
                 "upload_s": round(time_upload, 3),
-                "upload_mb_per_s": _throughput(time_upload),
+                "upload_mib_per_s": _throughput(time_upload),
                 "total_s": round(_total, 3),
-                "total_mb_per_s": _throughput(_total),
+                "total_mib_per_s": _throughput(_total),
             },
         )
         return checksums

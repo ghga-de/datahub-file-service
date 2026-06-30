@@ -161,12 +161,12 @@ async def test_interrogate_new_files(
             assert hasattr(log_record, field), f"Missing structured field: {field}"
             assert isinstance(getattr(log_record, field), float)
     expected_int_fields = (
-        "download_mb_per_s",
-        "decrypt_mb_per_s",
-        "reencrypt_mb_per_s",
-        "verify_mb_per_s",
-        "upload_mb_per_s",
-        "total_mb_per_s",
+        "download_mib_per_s",
+        "decrypt_mib_per_s",
+        "reencrypt_mib_per_s",
+        "verify_mib_per_s",
+        "upload_mib_per_s",
+        "total_mib_per_s",
     )
     for log_record in phase_timing_logs:
         for field in expected_int_fields:
