@@ -187,27 +187,6 @@ def _get_inbox_storage_with_write_access(config: Config) -> S3ObjectStorage:
     return S3ObjectStorage(config=inbox_write_s3_config)
 
 
-def _log_interrogation_guidance(
-    *, inbox_bucket: str, interrogation_bucket: str
-) -> None:
-    """Log permission guidance and the full stack trace for a failed interrogation phase.
-
-    Must be called from within the active `except` block so that `exc_info=True`
-    captures the exception currently being handled.
-    """
-    log.error(
-        "DHFS file interrogation failed."
-        " Ensure DHFS credentials have these permissions on inbox bucket '%s':"
-        " s3:HeadObject, s3:GetObject."
-        " Also ensure DHFS credentials have these permissions on interrogation"
-        " bucket '%s': s3:HeadObject, s3:DeleteObject, s3:CreateMultipartUpload,"
-        " s3:PutObject, s3:CompleteMultipartUpload, s3:AbortMultipartUpload.",
-        inbox_bucket,
-        interrogation_bucket,
-        exc_info=True,
-    )
-
-
 async def _clean_buckets(
     config: Config,
     inbox_write_storage: S3ObjectStorage,
@@ -285,15 +264,8 @@ async def _upload_inbox_dummy_file(
             encrypted_object=encrypted_object,
         )
     except Exception as err:
-        log.error(
-            " Ensure the inbox-write credentials have these permissions on bucket '%s':"
-            " s3:ListBucketMultipartUploads, s3:AbortMultipartUpload,"
-            " s3:CreateMultipartUpload, s3:PutObject, s3:CompleteMultipartUpload,"
-            " s3:DeleteObject.",
-            config.inbox_bucket_id,
-        )
         raise RuntimeError(
-            f"Failed to upload the dummy file to the inbox bucket: {err!s}"
+            f"Failed to upload the dummy file to the {config.inbox_bucket_id} bucket: {err!s}"
         ) from err
 
     return file_upload
@@ -378,17 +350,13 @@ async def run_check(config: Config, *, file_size: int):
         ),
         patch("dhfs.core.interrogator.uuid4", return_value=INTERROGATION_OBJECT_ID),
     ):
-        log.info("Running DHFS file interrogation.")
+        log.info("Performing DHFS file processing.")
         async with prepare_interrogator(config=config) as interrogator:
             try:
                 await interrogator.interrogate_file(file_upload)
-                log.info("File interrogation succeeded.")
-            except Exception:
-                _log_interrogation_guidance(
-                    inbox_bucket=config.inbox_bucket_id,  # type: ignore[arg-type]
-                    interrogation_bucket=config.interrogation_bucket_id,
-                )
-                raise
+                log.info("File processing succeeded.")
+            except Exception as err:
+                raise RuntimeError(f"File processing failed: {err!s}") from err
             finally:
                 log.info("Performing cleanup.")
                 await _clean_buckets(
