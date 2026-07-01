@@ -20,7 +20,9 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pytest_httpx import HTTPXMock
 
+from dhfs.config import Config
 from dhfs.core.verifier import (
     INTERROGATION_OBJECT_ID,
     OBJECT_ID_STR,
@@ -77,6 +79,47 @@ async def test_run_dhfs_verification_raises_when_required_bucket_missing(
     ):
         with pytest.raises(ValueError, match=missing_bucket):
             await run_dhfs_verification(config, file_size=1024)
+
+
+@pytest.mark.asyncio
+async def test_run_dhfs_verification_pings_central_new_uploads_endpoint(
+    config: Config, httpx_mock: HTTPXMock
+):
+    """Make sure that verification pings Central's 'new uploads' endpoint to confirm
+    the DHFS version is good to go.
+    """
+    verifier_config = config.model_copy(
+        update={
+            "inbox_bucket_id": "inbox",
+            "inbox_write_s3_access_key_id": "key",
+            "inbox_write_s3_secret_access_key": "secret",
+            "data_hub_crypt4gh_public_key_path": Path("/fake/key.pub"),
+        }
+    )
+    expected_url = (
+        f"{str(verifier_config.central_api_url).rstrip('/')}"
+        f"/storages/{verifier_config.storage_alias}/uploads"
+    )
+    httpx_mock.add_response(method="GET", url=expected_url, json=[])
+
+    storage = AsyncMock()
+    storage.does_bucket_exist.return_value = True
+
+    # Skip everything after the ping, only testing the Central API call
+    with (
+        patch(
+            "dhfs.core.verifier._get_inbox_storage_with_write_access",
+            return_value=storage,
+        ),
+        patch("dhfs.core.verifier.S3ObjectStorage", return_value=storage),
+        patch(
+            "dhfs.core.verifier._clean_buckets",
+            new=AsyncMock(side_effect=RuntimeError),
+        ),
+    ):
+        await run_dhfs_verification(verifier_config, file_size=1024)
+
+    assert httpx_mock.get_request(method="GET", url=expected_url) is not None
 
 
 @pytest.mark.asyncio
