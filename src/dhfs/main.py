@@ -96,7 +96,7 @@ async def check(*, file_size: int = 125 * 1024**2):
     """Run the re-encryption process on a dummy file to verify that DHFS works with the
     current S3 backend.
     """
-    config = Config()
+    config = Config()  # type: ignore[call-arg]
     _configure_logging(config=config)
     log.info(
         "Starting DHFS test run against real S3 backend. Current DHFS version is %s.",
