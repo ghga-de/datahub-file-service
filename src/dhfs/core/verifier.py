@@ -284,17 +284,17 @@ async def _upload_inbox_dummy_file(
             storage=inbox_write_storage,
             encrypted_object=encrypted_object,
         )
-    except:
+    except Exception as err:
         log.error(
-            "Failed to upload the dummy file to the inbox bucket."
             " Ensure the inbox-write credentials have these permissions on bucket '%s':"
             " s3:ListBucketMultipartUploads, s3:AbortMultipartUpload,"
             " s3:CreateMultipartUpload, s3:PutObject, s3:CompleteMultipartUpload,"
-            " s3:DeleteObject. The full stack trace is included below; if the cause is"
-            " not obvious, please share it with GHGA Central.",
+            " s3:DeleteObject.",
             config.inbox_bucket_id,
-            exc_info=True,
         )
+        raise RuntimeError(
+            f"Failed to upload the dummy file to the inbox bucket: {err!s}"
+        ) from err
 
     return file_upload
 
@@ -319,8 +319,6 @@ def _validate_config_for_verifier(config: Config):
     """Ensure the optional fields in the config, which are actually required for the
     verifier functionality, are set.
     """
-    if not config.inbox_bucket_id:
-        raise ValueError("inbox_bucket_id must be configured.")
     if not config.data_hub_crypt4gh_public_key_path:
         raise ValueError("data_hub_crypt4gh_public_key_path must be configured.")
     if not config.inbox_bucket_id:
@@ -361,16 +359,16 @@ async def run_check(config: Config, *, file_size: int):
             inbox_write_storage=inbox_write_storage,
             dhfs_storage=normal_dhfs_storage,
         )
+
+        file_upload = await _upload_inbox_dummy_file(
+            config=config,
+            inbox_write_storage=inbox_write_storage,
+            public_key_path=config.data_hub_crypt4gh_public_key_path,  # type: ignore
+            file_size=file_size,
+        )
     except Exception as err:
         log.error(err)
         return
-
-    file_upload = await _upload_inbox_dummy_file(
-        config=config,
-        inbox_write_storage=inbox_write_storage,
-        public_key_path=config.data_hub_crypt4gh_public_key_path,  # type: ignore
-        file_size=file_size,
-    )
 
     # Patch uuid4 so the re-encrypted object ID is set to INTERROGATION_OBJECT_ID. That
     #  lets us find it more easily.
