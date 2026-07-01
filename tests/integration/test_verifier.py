@@ -19,6 +19,7 @@ The core interrogation logic (prepare_interrogator / interrogate_file) is mocked
 so these tests focus exclusively on inbox upload and cleanup behavior.
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
@@ -27,6 +28,7 @@ import pytest
 import pytest_asyncio
 from hexkit.providers.s3.testutils import S3Fixture
 
+from dhfs.adapters.outbound.central import CentralClient
 from dhfs.config import Config
 from dhfs.core.verifier import OBJECT_ID_UUID, run_dhfs_verification
 from tests.fixtures.utils import DHFS_CRYPT4GH_PUBLIC_KEY_PATH
@@ -46,8 +48,13 @@ class VerifierFixture:
 
 
 @pytest_asyncio.fixture
-async def verifier_fixture(s3: S3Fixture, config: Config) -> VerifierFixture:
-    """Extends the base Config with verifier-specific settings and creates both buckets."""
+async def verifier_fixture(
+    s3: S3Fixture, config: Config
+) -> AsyncGenerator[VerifierFixture]:
+    """Extends the base Config with verifier-specific settings and creates both buckets.
+
+    The version check via Central API (fetch_new_uploads) is mocked.
+    """
     patched = config.model_dump()
     patched.update(s3.config.model_dump())
     patched.update(
@@ -63,7 +70,8 @@ async def verifier_fixture(s3: S3Fixture, config: Config) -> VerifierFixture:
     await s3.storage.create_bucket(INBOX_BUCKET_ID)
     await s3.storage.create_bucket(verifier_config.interrogation_bucket_id)
 
-    return VerifierFixture(config=verifier_config, s3=s3)
+    with patch.object(CentralClient, "fetch_new_uploads", AsyncMock(return_value=[])):
+        yield VerifierFixture(config=verifier_config, s3=s3)
 
 
 @asynccontextmanager
