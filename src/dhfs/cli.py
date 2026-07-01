@@ -19,7 +19,7 @@ import asyncio
 
 import typer
 
-from dhfs.main import perform_cleanup, run_interrogator, verify_backend
+from dhfs.main import check, perform_cleanup, run_interrogator
 
 cli = typer.Typer()
 
@@ -36,8 +36,8 @@ def sync_run_cleanup():
     asyncio.run(perform_cleanup())
 
 
-@cli.command(name="verify-backend")
-def sync_verify_backend(
+@cli.command(name="check")
+def sync_check(
     file_size: int = typer.Option(
         125,
         "--file-size",
@@ -45,6 +45,6 @@ def sync_verify_backend(
     ),
 ):
     """Run the re-encryption process on a dummy file to verify that DHFS works with the
-    current S3 backend.
+    current S3 backend. Outbound API calls to GHGA Central are mocked.
     """
-    asyncio.run(verify_backend(file_size=file_size * 1024**2))
+    asyncio.run(check(file_size=file_size * 1024**2))

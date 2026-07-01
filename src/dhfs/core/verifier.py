@@ -44,7 +44,7 @@ from dhfs.core import models
 from dhfs.core.checksums import Checksums
 from dhfs.inject import prepare_interrogator
 
-__all__ = ["_verify_backend"]
+__all__ = ["run_check"]
 
 log = logging.getLogger(__name__)
 
@@ -244,8 +244,10 @@ async def _clean_buckets(
                     object_id=object_id,
                 )
                 log.info("Deleted dummy object from the %s bucket.", bucket_id)
-        except Exception as exc:
-            log.warning("Could not clean the %s bucket: %s", bucket_id, exc)
+        except Exception as err:
+            raise RuntimeError(
+                f"Could not remove dummy data from the {bucket_id} bucket: {err!s}"
+            ) from err
 
 
 async def _upload_inbox_dummy_file(
@@ -330,7 +332,7 @@ def _validate_config_for_verifier(config: Config):
 
 
 # TODO: Rename this, make not prefixed with '_'
-async def _verify_backend(config: Config, *, file_size: int):
+async def run_check(config: Config, *, file_size: int):
     """Use dummy data and mock FIS responses in order to verify DHFS compatibility
     with the current S3 backend. This is useful as a smoke test.
     """
@@ -354,11 +356,15 @@ async def _verify_backend(config: Config, *, file_size: int):
     )
 
     log.info("Checking for lingering data from any prior runs.")
-    await _clean_buckets(
-        config=config,
-        inbox_write_storage=inbox_write_storage,
-        dhfs_storage=normal_dhfs_storage,
-    )
+    try:
+        await _clean_buckets(
+            config=config,
+            inbox_write_storage=inbox_write_storage,
+            dhfs_storage=normal_dhfs_storage,
+        )
+    except Exception as err:
+        log.error(err)
+        return
 
     file_upload = await _upload_inbox_dummy_file(
         config=config,
