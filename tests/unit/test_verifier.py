@@ -188,11 +188,11 @@ async def test_upload_inbox_dummy_file_error(caplog):
 
     with (
         patch(
-            "dhfs.core.verifier.generate_encrypted_object",
+            "dhfs.core.verifier._generate_encrypted_object",
             return_value=encrypted_object,
         ),
         patch(
-            "dhfs.core.verifier.upload_encrypted_object",
+            "dhfs.core.verifier._upload_encrypted_object",
             new=AsyncMock(side_effect=RuntimeError("denied")),
         ),
         caplog.at_level(logging.ERROR, logger="dhfs.core.verifier"),
