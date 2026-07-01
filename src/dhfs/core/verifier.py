@@ -38,7 +38,6 @@ from pydantic import SecretBytes, SecretStr
 
 from dhfs.adapters.outbound.central import CentralClient
 from dhfs.adapters.outbound.http import get_configured_httpx_client
-from dhfs.adapters.outbound.s3 import S3Client
 from dhfs.config import Config
 from dhfs.constants import ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH
 from dhfs.core import models
@@ -196,7 +195,7 @@ def _log_interrogation_guidance(
     captures the exception currently being handled.
     """
     log.error(
-        "Phase 2 failed: DHFS file interrogation."
+        "DHFS file interrogation failed."
         " Ensure DHFS credentials have these permissions on inbox bucket '%s':"
         " s3:HeadObject, s3:GetObject."
         " Also ensure DHFS credentials have these permissions on interrogation"
@@ -208,44 +207,45 @@ def _log_interrogation_guidance(
     )
 
 
-async def _preclean_buckets(config: Config, inbox_write_storage: S3ObjectStorage):
+async def _clean_buckets(
+    config: Config,
+    inbox_write_storage: S3ObjectStorage,
+    dhfs_storage: S3ObjectStorage,
+):
     """Delete the dummy objects from the buckets if applicable, along with any
-    lingering multipart uploads.
+    multipart uploads.
     """
-    log.info("Checking for lingering data from any prior runs.")
-    for bucket_id, object_id in [
-        (config.inbox_bucket_id, OBJECT_ID_STR),
-        (config.interrogation_bucket_id, str(INTERROGATION_OBJECT_ID)),
+    for bucket_id, object_id, storage in [
+        (config.inbox_bucket_id, OBJECT_ID_STR, inbox_write_storage),
+        (config.interrogation_bucket_id, str(INTERROGATION_OBJECT_ID), dhfs_storage),
     ]:
         try:
-            uploads = await inbox_write_storage.list_multipart_uploads_for_object(
+            uploads = await storage.list_multipart_uploads_for_object(
                 bucket_id=bucket_id,
                 object_id=object_id,
             )
             for upload_id in uploads:
-                await inbox_write_storage.abort_multipart_upload(
+                await storage.abort_multipart_upload(
                     upload_id=upload_id,
                     bucket_id=bucket_id,
                     object_id=object_id,
                 )
             if uploads:
                 log.info(
-                    "Aborted %i lingering multipart upload(s) for the dummy file in"
+                    "Aborted %i multipart upload(s) for the dummy file in"
                     " the %s bucket.",
                     len(uploads),
                     bucket_id,
                 )
 
             with suppress(S3ObjectStorage.ObjectNotFoundError):
-                await inbox_write_storage.delete_object(
+                await storage.delete_object(
                     bucket_id=bucket_id,
                     object_id=object_id,
                 )
-                log.info(
-                    "Deleted pre-existing dummy object from the %s bucket.", bucket_id
-                )
+                log.info("Deleted dummy object from the %s bucket.", bucket_id)
         except Exception as exc:
-            log.warning("Could not pre-clean the inbox: %s", exc)
+            log.warning("Could not clean the %s bucket: %s", bucket_id, exc)
 
 
 async def _upload_inbox_dummy_file(
@@ -297,49 +297,6 @@ async def _upload_inbox_dummy_file(
     return file_upload
 
 
-async def _cleanup_buckets(
-    *,
-    config: Config,
-    object_storage: S3ObjectStorage,
-    s3_client: S3Client,
-    inbox_write_storage: S3ObjectStorage,
-) -> None:
-    """Remove dummy data from both the interrogation and inbox buckets."""
-    if await object_storage.does_object_exist(
-        bucket_id=config.interrogation_bucket_id,
-        object_id=str(INTERROGATION_OBJECT_ID),
-    ):
-        await s3_client.remove_file(object_id=str(INTERROGATION_OBJECT_ID))
-        log.info(
-            "Dummy file removed from the '%s' bucket.", config.interrogation_bucket_id
-        )
-    else:
-        uploads = await object_storage.list_multipart_uploads_for_object(
-            bucket_id=config.interrogation_bucket_id,
-            object_id=str(INTERROGATION_OBJECT_ID),
-        )
-        for upload_id in uploads:
-            await s3_client.abort_upload(
-                upload_id=upload_id, object_id=str(INTERROGATION_OBJECT_ID)
-            )
-        if uploads:
-            log.info(
-                "Aborted %i lingering upload(s) from the '%s' bucket.",
-                len(uploads),
-                config.interrogation_bucket_id,
-            )
-
-    if await inbox_write_storage.does_object_exist(
-        bucket_id=config.inbox_bucket_id,  # type: ignore[arg-type]
-        object_id=OBJECT_ID_STR,
-    ):
-        await inbox_write_storage.delete_object(
-            bucket_id=config.inbox_bucket_id,  # type: ignore[arg-type]
-            object_id=OBJECT_ID_STR,
-        )
-        log.info("Dummy file removed from the '%s' bucket.", config.inbox_bucket_id)
-
-
 async def _assert_bucket_exists(
     *,
     storage: S3ObjectStorage,
@@ -380,7 +337,7 @@ async def _verify_backend(config: Config, *, file_size: int):
     _validate_config_for_verifier(config)
 
     inbox_write_storage = _get_inbox_storage_with_write_access(config)
-    dhfs_storage = S3ObjectStorage(config=config)
+    normal_dhfs_storage = S3ObjectStorage(config=config)
 
     log.info("Checking that required S3 buckets exist...")
     await _assert_bucket_exists(
@@ -390,13 +347,18 @@ async def _verify_backend(config: Config, *, file_size: int):
         credential_note="temporary inbox write-access",
     )
     await _assert_bucket_exists(
-        storage=dhfs_storage,
+        storage=normal_dhfs_storage,
         bucket_id=config.interrogation_bucket_id,
         label="interrogation",
         credential_note="normal DHFS",
     )
 
-    await _preclean_buckets(config=config, inbox_write_storage=inbox_write_storage)
+    log.info("Checking for lingering data from any prior runs.")
+    await _clean_buckets(
+        config=config,
+        inbox_write_storage=inbox_write_storage,
+        dhfs_storage=normal_dhfs_storage,
+    )
 
     file_upload = await _upload_inbox_dummy_file(
         config=config,
@@ -407,20 +369,14 @@ async def _verify_backend(config: Config, *, file_size: int):
 
     # Patch uuid4 so the re-encrypted object ID is set to INTERROGATION_OBJECT_ID. That
     #  lets us find it more easily.
-    log.info("Running DHFS file interrogation.")
     with (
         patch.object(
             CentralClient, "submit_interrogation_report", new_callable=AsyncMock
         ),
         patch("dhfs.core.interrogator.uuid4", return_value=INTERROGATION_OBJECT_ID),
     ):
-        async with (
-            prepare_interrogator(config=config) as interrogator,
-            get_configured_httpx_client(config=config) as httpx_client,
-        ):
-            s3_client = S3Client(
-                config=config, object_storage=dhfs_storage, httpx_client=httpx_client
-            )
+        log.info("Running DHFS file interrogation.")
+        async with prepare_interrogator(config=config) as interrogator:
             try:
                 await interrogator.interrogate_file(file_upload)
                 log.info("File interrogation succeeded.")
@@ -431,9 +387,9 @@ async def _verify_backend(config: Config, *, file_size: int):
                 )
                 raise
             finally:
-                await _cleanup_buckets(
+                log.info("Performing cleanup.")
+                await _clean_buckets(
                     config=config,
-                    object_storage=dhfs_storage,
-                    s3_client=s3_client,
                     inbox_write_storage=inbox_write_storage,
+                    dhfs_storage=normal_dhfs_storage,
                 )
