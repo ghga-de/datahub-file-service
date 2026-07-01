@@ -53,7 +53,7 @@ class Crypt4GHConfig(BaseSettings):
 class VerifierConfig(BaseSettings):
     """Additional S3 credentials with write access to the inbox bucket.
 
-    These are only required when running `dhfs verify-backend`. DHFS normally has
+    These are only required when running `dhfs verify`. DHFS normally has
     read-only access to the inbox; these credentials are used solely to upload and
     subsequently delete the dummy file used for verification.
     """
@@ -63,34 +63,34 @@ class VerifierConfig(BaseSettings):
         examples=["./key.pub"],
         description=(
             "Path to the Data Hub's Crypt4GH public key file. Only needed for"
-            + " running `dhfs verify-backend`."
+            + " running `dhfs verify`."
         ),
     )
     inbox_bucket_id: str | None = Field(
         default=None,
         examples=["inbox", "hub-inbox"],
-        description="The inbox bucket ID - only needed for running `dhfs verify-backend`.",
+        description="The inbox bucket ID - only needed for running `dhfs verify`.",
     )
     inbox_write_s3_access_key_id: str | None = Field(
         default=None,
         examples=["my-write-access-key-id"],
         description=(
             "S3 access key ID with write access to the inbox bucket."
-            + " Only needed for running `dhfs verify-backend`."
+            + " Only needed for running `dhfs verify`."
         ),
     )
     inbox_write_s3_secret_access_key: SecretStr | None = Field(
         default=None,
         description=(
             "S3 secret access key with write access to the inbox bucket."
-            + " Only needed for running `dhfs verify-backend`."
+            + " Only needed for running `dhfs verify`."
         ),
     )
     inbox_write_s3_session_token: SecretStr | None = Field(
         default=None,
         description=(
             "Optional S3 session token for the write-capable inbox credentials."
-            + " Only needed for running `dhfs verify-backend`."
+            + " Only needed for running `dhfs verify`."
         ),
     )
 

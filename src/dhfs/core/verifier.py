@@ -292,7 +292,7 @@ async def _assert_bucket_exists(
     if not await storage.does_bucket_exist(bucket_id):
         raise ValueError(
             f"The {label} bucket '{bucket_id}' does not exist."
-            f" Create the bucket before running verify-backend"
+            f" Create the bucket before running verify"
             f" ({credential_note} credentials were used for this check)."
         )
 
