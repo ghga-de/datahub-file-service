@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Integration tests for run_check setup and teardown.
+"""Integration tests for run_dhfs_verification setup and teardown.
 
 The core interrogation logic (prepare_interrogator / interrogate_file) is mocked
 so these tests focus exclusively on inbox upload and cleanup behavior.
@@ -28,7 +28,7 @@ import pytest_asyncio
 from hexkit.providers.s3.testutils import S3Fixture
 
 from dhfs.config import Config
-from dhfs.core.verifier import OBJECT_ID_UUID, run_check
+from dhfs.core.verifier import OBJECT_ID_UUID, run_dhfs_verification
 from tests.fixtures.utils import DHFS_CRYPT4GH_PUBLIC_KEY_PATH
 
 pytestmark = pytest.mark.asyncio
@@ -91,7 +91,7 @@ async def test_fresh_run_cleans_up_on_success(verifier_fixture: VerifierFixture)
     removes the inbox object.
     """
     with patch("dhfs.core.verifier.prepare_interrogator", _succeeding_interrogator):
-        await run_check(verifier_fixture.config, file_size=SMALL_FILE_SIZE)
+        await run_dhfs_verification(verifier_fixture.config, file_size=SMALL_FILE_SIZE)
 
     assert not await _inbox_has_object(verifier_fixture), (
         "Inbox dummy object should be removed after a successful run"
@@ -102,7 +102,9 @@ async def test_failure_cleans_up(verifier_fixture: VerifierFixture):
     """Verify that the inbox object is removed during cleanup when interrogation fails."""
     with pytest.raises(RuntimeError, match="Simulated failure"):
         with patch("dhfs.core.verifier.prepare_interrogator", _failing_interrogator):
-            await run_check(verifier_fixture.config, file_size=SMALL_FILE_SIZE)
+            await run_dhfs_verification(
+                verifier_fixture.config, file_size=SMALL_FILE_SIZE
+            )
 
     assert not await _inbox_has_object(verifier_fixture), (
         "Inbox object should be removed even when interrogation fails"

@@ -23,7 +23,7 @@ from hexkit.utils import now_utc_ms_prec
 from dhfs import __version__
 from dhfs.config import Config
 from dhfs.core.interrogator import InterrogatorPort
-from dhfs.core.verifier import run_check
+from dhfs.core.verifier import run_dhfs_verification
 from dhfs.inject import prepare_interrogation_bucket_cleaner, prepare_interrogator
 
 log = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ async def perform_cleanup():
         await cleaner.scan_and_clean()
 
 
-async def check(*, file_size: int = 125 * 1024**2):
+async def verify(*, file_size: int = 125 * 1024**2):
     """Run the re-encryption process on a dummy file to verify that DHFS works with the
     current S3 backend.
     """
@@ -103,7 +103,7 @@ async def check(*, file_size: int = 125 * 1024**2):
         __version__,
     )
     start = now_utc_ms_prec()
-    await run_check(config=config, file_size=file_size)
+    await run_dhfs_verification(config=config, file_size=file_size)
     stop = now_utc_ms_prec()
     duration_sec = (stop - start).seconds
     log.info(

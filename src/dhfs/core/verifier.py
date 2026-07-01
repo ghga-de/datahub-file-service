@@ -44,7 +44,7 @@ from dhfs.core import models
 from dhfs.core.checksums import Checksums
 from dhfs.inject import prepare_interrogator
 
-__all__ = ["run_check"]
+__all__ = ["run_dhfs_verification"]
 
 log = logging.getLogger(__name__)
 
@@ -311,7 +311,7 @@ def _validate_config_for_verifier(config: Config):
         raise ValueError("inbox_write_s3_secret_access_key must be configured.")
 
 
-async def run_check(config: Config, *, file_size: int):
+async def run_dhfs_verification(config: Config, *, file_size: int):
     """Use dummy data and mock FIS responses in order to verify DHFS compatibility
     with the current S3 backend. This is useful as a smoke test.
     """
@@ -333,6 +333,13 @@ async def run_check(config: Config, *, file_size: int):
         label="interrogation",
         credential_note="normal DHFS",
     )
+
+    # Ping the Central API to make sure DHFS version is outdated
+    async with get_configured_httpx_client(config=config) as httpx_client:
+        central_client = CentralClient(config=config, httpx_client=httpx_client)
+        log.debug("Checking if DHFS version is accepted by Central.")
+        _ = await central_client.fetch_new_uploads()
+    log.info("Verified that DFHS version is accepted by Central.")
 
     log.info("Checking for lingering data from any prior runs.")
     try:

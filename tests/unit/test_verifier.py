@@ -27,7 +27,7 @@ from dhfs.core.verifier import (
     _clean_buckets,
     _upload_inbox_dummy_file,
     _validate_config_for_verifier,
-    run_check,
+    run_dhfs_verification,
 )
 
 
@@ -53,10 +53,10 @@ def test_validate_config_requires_each_field(missing_field: str):
     [(False, True, "my-inbox"), (True, False, "my-interrogation")],
 )
 @pytest.mark.asyncio
-async def test_run_check_raises_when_required_bucket_missing(
+async def test_run_dhfs_verification_raises_when_required_bucket_missing(
     inbox_exists: bool, interrogation_exists: bool, missing_bucket: str
 ):
-    """Verify that run_check aborts with a ValueError naming whichever required bucket is
+    """Verify that run_dhfs_verification aborts with a ValueError naming whichever required bucket is
     missing.
     """
     config = MagicMock()
@@ -76,7 +76,7 @@ async def test_run_check_raises_when_required_bucket_missing(
         patch("dhfs.core.verifier.S3ObjectStorage", return_value=dhfs_storage),
     ):
         with pytest.raises(ValueError, match=missing_bucket):
-            await run_check(config, file_size=1024)
+            await run_dhfs_verification(config, file_size=1024)
 
 
 @pytest.mark.asyncio
