@@ -104,6 +104,7 @@ def generate_encrypted_object(
     encrypted_data = envelope
 
     # Encrypt data in Crypt4GH SEGMENT_SIZE chunks, not part_size chunks
+    log.info(f"Generating {file_size // (1024**2)} MiB of dummy data")
     with big_temp_file(file_size) as file:
         unencrypted_size = file.tell()
         file.seek(0)
@@ -258,7 +259,6 @@ async def _upload_inbox_dummy_file(
     file_size: int,
 ) -> models.FileUpload:
     """Generate a fresh encrypted dummy file and upload it to the inbox."""
-    log.info("Generating encrypted object data to the inbox...")
     encrypted_object = generate_encrypted_object(
         part_size=PART_SIZE,
         file_size=file_size,
@@ -331,7 +331,6 @@ def _validate_config_for_verifier(config: Config):
         raise ValueError("inbox_write_s3_secret_access_key must be configured.")
 
 
-# TODO: Rename this, make not prefixed with '_'
 async def run_check(config: Config, *, file_size: int):
     """Use dummy data and mock FIS responses in order to verify DHFS compatibility
     with the current S3 backend. This is useful as a smoke test.
