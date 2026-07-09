@@ -19,6 +19,7 @@ import logging
 import os
 from contextlib import suppress
 from dataclasses import dataclass
+from math import ceil
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 from uuid import UUID
@@ -304,7 +305,7 @@ def _generate_encrypted_object(
             encrypted_data += nonce + encrypted_chunk
 
     # Iterate through encrypted data and calculate checksums on encrypted content
-    for i in range((len(encrypted_data) // part_size) + 1):
+    for i in range(ceil(len(encrypted_data) / part_size)):
         part = encrypted_data[i * part_size : (i + 1) * part_size]
         if part:
             checksums.update_encrypted(part)
