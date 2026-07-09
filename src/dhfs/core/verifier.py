@@ -359,10 +359,10 @@ async def _upload_encrypted_object(
                 bucket_id=inbox_bucket_id,
                 object_id=OBJECT_ID_STR,
                 part_number=i + 1,
-                expires_after=360000,
+                expires_after=300,
             )
 
-            response = await client.put(url, content=content, timeout=50000)
+            response = await client.put(url, content=content, timeout=300)
             if response.status_code != 200:
                 raise RuntimeError(
                     f"Inbox part upload returned HTTP {response.status_code}."
