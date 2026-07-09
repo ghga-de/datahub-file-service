@@ -20,7 +20,6 @@ import os
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
@@ -166,16 +165,10 @@ def _get_inbox_storage_with_write_access(config: Config) -> S3ObjectStorage:
 
     The S3 endpoint is shared with the main config; only the credentials differ.
     """
-    if TYPE_CHECKING:
-        assert config.inbox_bucket_id is not None
-        assert config.interrogation_bucket_id is not None
-        assert config.inbox_write_s3_access_key_id is not None
-        assert config.inbox_write_s3_secret_access_key is not None
-
-    inbox_write_s3_config = S3Config(  # type: ignore
-        s3_endpoint_url=config.s3_endpoint_url,
-        s3_access_key_id=config.inbox_write_s3_access_key_id,
-        s3_secret_access_key=config.inbox_write_s3_secret_access_key,
+    inbox_write_s3_config = S3Config(
+        s3_endpoint_url=config.s3_endpoint_url,  # type: ignore
+        s3_access_key_id=config.inbox_write_s3_access_key_id,  # type: ignore
+        s3_secret_access_key=config.inbox_write_s3_secret_access_key,  # type: ignore
         s3_session_token=config.inbox_write_s3_session_token,
     )
     return S3ObjectStorage(config=inbox_write_s3_config)
@@ -205,14 +198,15 @@ async def _clean_buckets(
     """Delete the dummy objects from the buckets if applicable, along with any
     multipart uploads.
     """
-    if TYPE_CHECKING:
-        assert config.inbox_bucket_id is not None
-        assert config.interrogation_bucket_id is not None
-
     for bucket_id, object_id, storage in [
         (config.inbox_bucket_id, OBJECT_ID_STR, inbox_write_storage),
         (config.interrogation_bucket_id, str(INTERROGATION_OBJECT_ID), dhfs_storage),
     ]:
+        if not bucket_id:  # These should be set, but type checker doesn't know that
+            raise RuntimeError(
+                "Both inbox_bucket_id and interrogation_bucket_id must be configured."
+            )
+
         try:
             uploads = await storage.list_multipart_uploads_for_object(
                 bucket_id=bucket_id,
@@ -341,8 +335,9 @@ async def _upload_encrypted_object(
 ):
     """Upload dummy data to the inbox bucket."""
     inbox_bucket_id = config.inbox_bucket_id
-    if TYPE_CHECKING:
-        assert inbox_bucket_id is not None
+
+    if not inbox_bucket_id:
+        raise RuntimeError("Config parameter inbox_bucket_id must be set.")
 
     upload_id = await storage.init_multipart_upload(
         bucket_id=inbox_bucket_id, object_id=OBJECT_ID_STR
