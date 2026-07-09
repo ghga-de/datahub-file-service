@@ -153,4 +153,4 @@ class Config(
         return False
 
 
-CONFIG = Config()  # type: ignore
+CONFIG = Config()

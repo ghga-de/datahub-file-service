@@ -167,7 +167,7 @@ def _get_inbox_storage_with_write_access(config: Config) -> S3ObjectStorage:
     The S3 endpoint is shared with the main config; only the credentials differ.
     """
     inbox_write_s3_config = S3Config(
-        s3_endpoint_url=config.s3_endpoint_url,  # type: ignore
+        s3_endpoint_url=config.s3_endpoint_url,
         s3_access_key_id=config.inbox_write_s3_access_key_id,  # type: ignore
         s3_secret_access_key=config.inbox_write_s3_secret_access_key,  # type: ignore
         s3_session_token=config.inbox_write_s3_session_token,
@@ -373,5 +373,8 @@ def _get_crypt4gh_private_key(
     key_path: Path, passphrase: SecretStr | None = None
 ) -> SecretBytes:
     """Get the crypt4gh private key stored in the specified path"""
-    callback = lambda: passphrase.get_secret_value() if passphrase else None
+
+    def callback():
+        return passphrase.get_secret_value() if passphrase else None
+
     return SecretBytes(get_private_key(key_path, callback))
