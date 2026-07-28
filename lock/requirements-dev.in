@@ -5,4 +5,5 @@
 
 # additional requirements can be listed here
 testcontainers[kafka,mongo]>=4.13
-ghga-service-commons[crypt]
+# the `api` extra provides the MockRouter used to mock the GHGA Central API in tests
+ghga-service-commons[api,crypt]

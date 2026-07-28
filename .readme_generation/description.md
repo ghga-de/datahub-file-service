@@ -5,6 +5,7 @@ Within GHGA Central services, file upload activity is tracked and broadcasted th
 Example for JWK generation with Python and the `jwcrypto` library:
 ```python
 from jwcrypto.jwk import JWK
+
 jwk = JWK.generate(kid="HD01-DHFS-2026-04", kty="EC", crv="P-256")
 with open("jwk.pub", "w") as pk, open("jwk.sec", "w") as sk:
     pk.write(jwk.export_public())

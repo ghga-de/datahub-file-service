@@ -19,7 +19,7 @@ import base64
 import logging
 from json import JSONDecodeError
 
-import httpx
+import httpx2
 from ghga_service_commons.utils.crypt import encrypt
 from ghga_service_commons.utils.jwt_helpers import sign_and_serialize_token
 from jwcrypto.jwk import JWK
@@ -69,7 +69,7 @@ class CentralClient(CentralClientPort):
         self,
         *,
         config: CentralClientConfig,
-        httpx_client: httpx.AsyncClient,
+        httpx_client: httpx2.AsyncClient,
     ) -> None:
         """Initialize the CentralClient instance"""
         self._httpx_client = httpx_client
@@ -98,8 +98,8 @@ class CentralClient(CentralClientPort):
         """Create an authorization header with a bearer token containing a fresh JWT"""
         return {"Authorization": f"Bearer {self._make_jwt()}"}
 
-    def _response_to_object_id_list(self, response: httpx.Response) -> list[str]:
-        """Returns a list of strings from an httpx Response.
+    def _response_to_object_id_list(self, response: httpx2.Response) -> list[str]:
+        """Returns a list of strings from an httpx2 Response.
 
         Raises:
         - ResponseFormatError if response body parsing fails.
@@ -115,9 +115,9 @@ class CentralClient(CentralClientPort):
         return body
 
     def _response_to_file_upload_list(
-        self, response: httpx.Response
+        self, response: httpx2.Response
     ) -> list[models.FileUpload]:
-        """Extract a list of FileUploads from an httpx Response.
+        """Extract a list of FileUploads from an httpx2 Response.
 
         Raises:
         - ResponseFormatError if response body parsing fails.
