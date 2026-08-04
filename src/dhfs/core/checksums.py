@@ -38,14 +38,36 @@ class Checksums:
         """Returns true if the encryption checksum buffer is still empty"""
         return not self.encrypted_md5
 
-    def update_unencrypted(self, part: bytes):
+    def update_unencrypted(self, part: bytes | bytearray | memoryview):
         """Update checksum for unencrypted file"""
         self.unencrypted_sha256.update(part)
 
+    @staticmethod
+    def digest_encrypted_part(part: bytes) -> tuple[bytes, bytes]:
+        """Return the (md5, sha256) digests of a single encrypted part.
+
+        Useful when parts are processed out of order and the digests have to be
+        collected before they can be stored in part order.
+        """
+        return (
+            hashlib.md5(part, usedforsecurity=False).digest(),
+            hashlib.sha256(part).digest(),
+        )
+
     def update_encrypted(self, part: bytes):
         """Update encrypted part checksums"""
-        self.encrypted_md5.append(hashlib.md5(part, usedforsecurity=False).digest())
-        self.encrypted_sha256.append(hashlib.sha256(part).digest())
+        md5, sha256 = self.digest_encrypted_part(part)
+        self.encrypted_md5.append(md5)
+        self.encrypted_sha256.append(sha256)
+
+    def set_encrypted_parts(self, digests: list[tuple[bytes, bytes]]):
+        """Store per-part encrypted checksums that were calculated out of order.
+
+        `digests` must be ordered by part number, as returned by
+        `digest_encrypted_part()`.
+        """
+        self.encrypted_md5 = [md5 for md5, _ in digests]
+        self.encrypted_sha256 = [sha256 for _, sha256 in digests]
 
     def encrypted_checksum_for_s3(self) -> str:
         """Formulate the expected encrypted checksum str (etag) stored by S3."""

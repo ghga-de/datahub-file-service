@@ -343,6 +343,20 @@
       "title": "Interrogation Bucket Id",
       "type": "string"
     },
+    "max_concurrent_files": {
+      "default": 2,
+      "description": "How many files from a batch to process at the same time. Raising this increases throughput but also memory use and load on the S3 backend. Peak memory is roughly max_concurrent_files * max_concurrent_parts * 3 * the file's part size, so raise it with care for large part sizes.",
+      "minimum": 1,
+      "title": "Max Concurrent Files",
+      "type": "integer"
+    },
+    "max_concurrent_parts": {
+      "default": 4,
+      "description": "How many parts of a single file to process at the same time. This lets the download of one part overlap the re-encryption of another and the upload of a third. See max_concurrent_files for the memory impact.",
+      "minimum": 1,
+      "title": "Max Concurrent Parts",
+      "type": "integer"
+    },
     "library_log_level": {
       "default": "CRITICAL",
       "description": "The log level to use for libraries. This option can be used in tandem with log_level to view DEBUG logs from DHFS without the noise of third-party libraries. Will be overridden by log_level if log_level is higher. By default, this is set to CRITICAL, which will suppress all logs with a log level lower than CRITICAL.",

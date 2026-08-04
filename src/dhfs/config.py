@@ -121,6 +121,27 @@ class Config(
             + " files until they are copied to permanent storage by IFRS."
         ),
     )
+
+    max_concurrent_files: int = Field(
+        default=2,
+        ge=1,
+        description=(
+            "How many files from a batch to process at the same time. Raising this"
+            + " increases throughput but also memory use and load on the S3 backend."
+            + " Peak memory is roughly max_concurrent_files * max_concurrent_parts *"
+            + " 3 * the file's part size, so raise it with care for large part sizes."
+        ),
+    )
+
+    max_concurrent_parts: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "How many parts of a single file to process at the same time. This lets"
+            + " the download of one part overlap the re-encryption of another and the"
+            + " upload of a third. See max_concurrent_files for the memory impact."
+        ),
+    )
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
     )
