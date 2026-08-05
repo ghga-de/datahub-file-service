@@ -142,6 +142,17 @@ class Config(
             + " upload of a third. See max_concurrent_files for the memory impact."
         ),
     )
+    max_concurrent_deletions: int = Field(
+        default=16,
+        ge=1,
+        description=(
+            "How many objects the cleanup routine deletes from the interrogation"
+            + " bucket at the same time. Each deletion is its own request, so a serial"
+            + " cleanup costs one round trip per object. Deletions hold no file data,"
+            + " so this only trades against load on the S3 backend."
+        ),
+    )
+
     service_name: str = Field(
         default=SERVICE_NAME, description="Short name of this service"
     )

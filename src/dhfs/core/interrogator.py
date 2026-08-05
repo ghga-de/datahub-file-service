@@ -423,6 +423,53 @@ class Interrogator(InterrogatorPort):
 
         return verified_part
 
+    async def _prepare_part(
+        self,
+        *,
+        file_upload: FileUpload,
+        part_range: PartRange,
+        secrets: tuple[SecretBytes, SecretBytes],
+        log_extra: dict,
+        timings: dict[str, float],
+    ) -> tuple[bytes, tuple[bytes, bytes]]:
+        """Produce the bytes to upload for one part, plus their digests.
+
+        Takes the part from the inbox through download and re-encryption, then digests
+        the result. `secrets` is the (old, new) pair.
+
+        Returns the re-encrypted part and its (md5, sha256) digests.
+        """
+        old_secret, new_secret = secrets
+        part_no = log_extra["file_part_number"]
+
+        _time = time.monotonic()
+        encrypted_part = await self._download_part(
+            file_upload=file_upload,
+            part_range=part_range,
+            part_no=part_no,
+            log_extra=log_extra,
+        )
+        timings["download"] += time.monotonic() - _time
+
+        reencrypted_part = await self._transform_part(
+            encrypted_part=encrypted_part,
+            old_secret=old_secret,
+            new_secret=new_secret,
+            log_extra=log_extra,
+            timings=timings,
+        )
+        del encrypted_part
+
+        # Digesting a whole part blocks for tens of milliseconds, which would freeze
+        #  every other part's transfer, so it goes to a thread like the crypto does.
+        _time = time.monotonic()
+        part_digests = await asyncio.to_thread(
+            Checksums.digest_encrypted_part, reencrypted_part
+        )
+        timings["digest"] += time.monotonic() - _time
+
+        return reencrypted_part, part_digests
+
     async def _process_file_parts(
         self,
         *,
@@ -472,7 +519,7 @@ class Interrogator(InterrogatorPort):
         # Aggregate time spent in each stage across all parts. With concurrency these
         #  overlap, so they no longer sum to wall time - hence the separate measurement.
         timings = dict.fromkeys(
-            ("download", "decrypt", "reencrypt", "verify", "upload"), 0.0
+            ("download", "decrypt", "reencrypt", "verify", "digest", "upload"), 0.0
         )
 
         # Tasks acquire this in creation order, so part 0 always gets a slot first and
@@ -492,30 +539,15 @@ class Interrogator(InterrogatorPort):
             async with semaphore:
                 log.debug("File %s: Processing part %s.", file_id, part_no)
 
-                # Download
-                _time = time.monotonic()
-                encrypted_part = await self._download_part(
+                reencrypted_part, part_digests = await self._prepare_part(
                     file_upload=file_upload,
                     part_range=part_range,
-                    part_no=part_no,
-                    log_extra=log_extra,
-                )
-                timings["download"] += time.monotonic() - _time
-
-                reencrypted_part = await self._transform_part(
-                    encrypted_part=encrypted_part,
-                    old_secret=old_secret,
-                    new_secret=new_secret,
+                    secrets=(old_secret, new_secret),
                     log_extra=log_extra,
                     timings=timings,
                 )
-                del encrypted_part
-
-                # Calculate part's encrypted md5 and sha256
-                part_md5, part_sha256 = checksums.digest_encrypted_part(
-                    reencrypted_part
-                )
-                digests[index] = (part_md5, part_sha256)
+                digests[index] = part_digests
+                part_md5 = part_digests[0]
 
                 async def _verify_and_fold(part: bytes) -> None:
                     """Prove the round-trip, then fold the plaintext into the file hash."""
@@ -530,7 +562,11 @@ class Interrogator(InterrogatorPort):
                     #  upload keeps the chain advancing at crypto speed, not S3 speed.
                     if index:
                         await hashed[index - 1].wait()
-                    checksums.update_unencrypted(verified_part)
+                    _time = time.monotonic()
+                    # Also threaded, for the same reason as the digest above. The
+                    #  successor stays blocked until this returns, so order still holds.
+                    await asyncio.to_thread(checksums.update_unencrypted, verified_part)
+                    timings["digest"] += time.monotonic() - _time
                     hashed[index].set()
 
                 async def _upload(part: bytes) -> None:

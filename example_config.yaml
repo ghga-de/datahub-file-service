@@ -38,6 +38,7 @@ library_logger_names:
 log_format: null
 log_level: INFO
 log_traceback: true
+max_concurrent_deletions: 16
 max_concurrent_files: 2
 max_concurrent_parts: 4
 min_run_interval_seconds: 60

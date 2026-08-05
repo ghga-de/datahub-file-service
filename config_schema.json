@@ -357,6 +357,13 @@
       "title": "Max Concurrent Parts",
       "type": "integer"
     },
+    "max_concurrent_deletions": {
+      "default": 16,
+      "description": "How many objects the cleanup routine deletes from the interrogation bucket at the same time. Each deletion is its own request, so a serial cleanup costs one round trip per object. Deletions hold no file data, so this only trades against load on the S3 backend.",
+      "minimum": 1,
+      "title": "Max Concurrent Deletions",
+      "type": "integer"
+    },
     "library_log_level": {
       "default": "CRITICAL",
       "description": "The log level to use for libraries. This option can be used in tandem with log_level to view DEBUG logs from DHFS without the noise of third-party libraries. Will be overridden by log_level if log_level is higher. By default, this is set to CRITICAL, which will suppress all logs with a log level lower than CRITICAL.",

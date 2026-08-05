@@ -235,6 +235,13 @@ part number and `Content-MD5` — but the *assert* is what costs, not the signin
 **Required:** an upstream hexkit change adding a flag to skip the existence assertion.
 Confirmed still present and byte-identical in hexkit 9.0.0.
 
+Written up for filing against hexkit in **`HEXKIT_UPSTREAM_ISSUES.md`** (Issue 1), along
+with a detail not noted above: `_list_multipart_uploads_for_object()` paginates
+`list_multipart_uploads` over the *whole bucket* with no `Prefix` and filters client-side,
+so the per-part cost also scales with unrelated bucket contents. The cleaner's outstanding
+`TODO: Finish MPU cleanup` lets abandoned uploads accumulate, which makes this worse over
+time in exactly the deployments where it already hurts most.
+
 ### 4.3 Dependency upgrade — no performance benefit, real migration cost
 
 hexkit 9.0.0 and ghga-service-commons 8.0.0 were evaluated and measured.
@@ -348,6 +355,111 @@ speedup on every success.
 
 ---
 
+## 4b. Follow-up: issues found outside the crypto path
+
+A sweep of the rest of the service — S3 adapter, Central client, cleaner, models, run
+loop — turned up two real problems and several candidates that measurement rejected.
+
+### 4b.1 Part hashing was blocking the event loop (fixed — the largest single win)
+
+The crypto was moved to worker threads in §3.3, but the *hashing* was not, and it is not
+cheap. Measured on this machine:
+
+| | 6 MiB part | 16 MiB part |
+|---|---|---|
+| MD5 (~515 MiB/s) | 11.8 ms | 30.9 ms |
+| SHA-256 (~1155 MiB/s) | 5.2 ms | 13.9 ms |
+| **`digest_encrypted_part` per part** | **17.4 ms** | **44.9 ms** |
+
+Plus `update_unencrypted` (another SHA-256 over the plaintext) at 5.2 / 13.9 ms. So every
+part froze the event loop for roughly 22 ms at 6 MiB parts and 59 ms at 16 MiB parts. While
+frozen, no other part's download or upload can make progress — it was quietly cancelling
+out much of the pipelining from §3.3.
+
+Both now run via `asyncio.to_thread`, like the crypto. `hashlib` releases the GIL for
+buffers over 2 KiB, so the threads genuinely run in parallel. Ordering is unaffected: the
+successor stays blocked on `hashed[index]`, which is only set after the threaded fold
+returns. A `digest` stage was added to the logged metrics.
+
+This is worth **1.18–1.35× on its own**, more than any other single change in this round,
+and it scales with part size — the bigger the parts, the longer the loop was frozen.
+
+### 4b.2 Cleanup deleted objects one at a time (fixed)
+
+`S3Cleaner.scan_and_clean()` looped over removable objects with a sequential `await` per
+deletion. Each is its own S3 round trip, so cleanup cost object-count × latency — a 500
+object cleanup at 20 ms RTT spent 10 seconds doing nothing but waiting.
+
+The deletions are independent, so they now run through a `TaskGroup` bounded by a new
+`max_concurrent_deletions` option (default 16). Failure handling is unchanged: the helper
+records failures instead of raising, so the group still runs every deletion to completion
+and the partial-failure log is identical. `hexkit`'s `ObjectStorageProtocol` exposes only
+single-object `delete_object`, so S3's batch `DeleteObjects` API (up to 1000 keys per
+call) is not reachable from here — that would be a further upstream win.
+
+`tests/integration/test_cleaner.py::test_deletions_run_concurrently` pins this; it fails
+at 0.99 s against the old serial code and passes at ~0.1 s now.
+
+### 4b.3 Candidates measured and rejected
+
+- **JWT signing per request.** `_auth_headers()` mints a fresh token on every Central
+  call, and `AUTH_TOKEN_VALID_SECONDS` is 60, so caching looked plausible. Measured at
+  **0.175 ms per signature** — about 9 ms across a 50-file batch. Not worth the staleness
+  risk. Left alone.
+- **`does_object_exist` before `init_multipart_upload`.** This looked like a guaranteed-dead
+  HeadObject per file, since the interrogator passes a freshly generated `uuid4()` that
+  cannot collide. It is *not* dead: `dhfs verify` patches `uuid4` to a fixed
+  `INTERROGATION_OBJECT_ID`, and the check is what makes repeated verification runs
+  idempotent. Removing it would break that for one round trip per file. Left alone.
+
+### 4b.4 `timedelta.seconds` misuse in the run loop (fixed)
+
+`main.py` computed elapsed time as `(stop - start).seconds` in two places — the
+interrogation run-interval calculation and the `dhfs verify` duration log.
+`timedelta.seconds` is the seconds *component* of the delta, not its total: it silently
+drops whole days and the sub-second remainder.
+
+| batch duration | `.seconds` | `.total_seconds()` | resulting sleep (60 s interval) |
+|---|---|---|---|
+| 0.4 s | 0 | 0.4 | 60.0 s → 59.6 s |
+| 12.7 s | 12 | 12.7 | 48.0 s → 47.3 s |
+| exactly 24 h | 0 | 86400.0 | 60.0 s → 0 s |
+| 24 h + 5 s | 5 | 86405.0 | 55.0 s → 0 s |
+
+The sub-second truncation was cosmetic, but the wraparound is not: a batch that ran past
+24 hours would report a near-zero elapsed time and then wait out a full interval it had
+already vastly exceeded. Both sites now use `.total_seconds()`, and the two log lines use
+`%.1f` since the value is no longer an integer.
+
+### 4b.5 Upstream S3 round trips — documented for filing
+
+Three hexkit inefficiencies are now written up in **`HEXKIT_UPSTREAM_ISSUES.md`**, with
+measured call counts, source excerpts, and suggested fixes:
+
+1. `get_part_upload_url()` issues a bucket-wide `ListMultipartUploads` per part (§4.2).
+2. `complete_multipart_upload()` discards the ETag the S3 response already contains,
+   forcing DHFS to fetch it separately.
+3. `get_object_etag()` costs three round trips — `_assert_object_exists()` does a
+   `HeadBucket` plus a `HeadObject`, then `_get_object_metadata()` repeats the same
+   `HeadObject`.
+
+Measured S3 operations for one 60 MiB file, by patching
+`botocore.client.BaseClient._make_api_call`:
+
+| Operation | 11 parts (6 MiB) | 4 parts (16 MiB) |
+|---|---|---|
+| `ListMultipartUploads` | 13 | 6 |
+| `HeadObject` | 4 | 4 |
+| `HeadBucket` | 2 | 2 |
+| `CreateMultipartUpload` / `ListParts` / `CompleteMultipartUpload` | 1 each | 1 each |
+| **Total** | **22** | **15** |
+
+`ListMultipartUploads` is `part_count + 2` and is **59%** of all S3 calls on the 11-part
+file. None of the three is fixable from DHFS — each sits inside the
+`ObjectStorageProtocol` method DHFS has to call.
+
+---
+
 ## 5. Summary
 
 | Item | Status |
@@ -358,15 +470,34 @@ speedup on every success.
 | Concurrency across files | Done — 1.94× per batch |
 | Verify pass overlapped with upload | Done — a further 1.10× per file |
 | Unordered parts, fold at end | Rejected — measurably slower, O(file) memory |
+| Part hashing off the event loop | Done — a further 1.18–1.35× per file |
+| Concurrent cleanup deletions | Done — was 1 round trip per object, serial |
+| JWT signing per request | Measured at 0.175 ms — not worth caching |
+| Pre-upload existence check | Kept — load-bearing for `dhfs verify` idempotency |
+| `complete_upload` extra HeadObject | **Open — filed in `HEXKIT_UPSTREAM_ISSUES.md`** |
+| `get_object_etag` triple round trip | **Open — filed in `HEXKIT_UPSTREAM_ISSUES.md`** |
+| `.seconds` vs `.total_seconds()` in `main.py` | Done — both sites |
 | Wall-clock metrics | Done |
 | Confirm Central API report cost | **Open — needs production check** |
-| Per-part `ListMultipartUploads` | **Open — blocked on hexkit** |
+| Per-part `ListMultipartUploads` | **Open — filed in `HEXKIT_UPSTREAM_ISSUES.md`** |
 | Dependency upgrade | Evaluated — no perf benefit, deferred |
 | Dead cache config options | Open — cleanup |
 | Environment/lock drift | Open — hygiene |
 | S3 minimum part size floor | Open — pre-existing |
 | Verify-decrypt pass | Retained by decision |
 
-Net measured improvement: **1.5–2.1× wall time**, largest for multi-part files and full
-batches against a latent endpoint. The single largest remaining win (§4.2) requires an
-upstream change, and §4.1 may yet prove to be the actual cause of the reported symptom.
+Net measured improvement: **1.9–2.8× wall time**, largest for multi-part files and full
+batches against a latent endpoint. Against the state at the start of this round, the
+§4a and §4b changes together give:
+
+| config | before this round | after | gain |
+|---|---|---|---|
+| 60 MiB, 6 MiB parts, 0 ms | 0.913 s | 0.704 s | 1.30× |
+| 60 MiB, 6 MiB parts, 20 ms | 1.023 s | 0.800 s | 1.28× |
+| 60 MiB, 16 MiB parts, 0 ms | 0.773 s | 0.497 s | 1.56× |
+| 60 MiB, 16 MiB parts, 20 ms | 0.819 s | 0.637 s | 1.29× |
+| Batch, 4 × 24 MiB, 20 ms | 1.790 s | 1.247 s | 1.44× |
+
+Batch throughput went from 53.6 to 77.0 MiB/s. The single largest remaining win (§4.2)
+requires an upstream change, and §4.1 may yet prove to be the actual cause of the
+reported symptom.
