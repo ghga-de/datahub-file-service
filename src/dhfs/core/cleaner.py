@@ -93,27 +93,19 @@ class S3Cleaner(S3CleanerPort):
             log.info("No files marked for removal, exiting.")
             return
 
-        # Track deletion results
-        deleted_count = 0
         failed_deletions: list[str] = []
 
-        # Each deletion is a separate round trip to S3, so doing them one at a time
-        #  makes cleanup take the object count times the latency. They are independent,
-        #  so run a bounded number of them at once instead.
+        # Independent round trips; run a bounded number of them at once.
         semaphore = asyncio.Semaphore(self._max_concurrent_deletions)
 
         async def _remove(object_id: str) -> None:
             """Delete one object, recording a failure rather than raising it."""
-            nonlocal deleted_count
             async with semaphore:
                 try:
                     await self._s3_client.remove_file(object_id=object_id)
                 except Exception:
                     failed_deletions.append(object_id)
-                else:
-                    deleted_count += 1
 
-        # _remove() never raises, so the group always runs every deletion to completion
         async with asyncio.TaskGroup() as task_group:
             for object_id in removable_objects:
                 task_group.create_task(_remove(object_id))
@@ -121,7 +113,7 @@ class S3Cleaner(S3CleanerPort):
         log.info(
             "Cleanup completed%s: %d file(s) deleted successfully, %d failed.",
             " with errors" if failed_deletions else "",
-            deleted_count,
+            len(removable_objects) - len(failed_deletions),
             len(failed_deletions),
             extra=(
                 {"objects_unable_to_delete": failed_deletions}

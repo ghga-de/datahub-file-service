@@ -15,35 +15,21 @@
 
 """Tests for picking the error to surface when concurrent parts or files fail.
 
-Parts run inside nested TaskGroups (one per file, one per part for the overlapped
-verify/upload pair), so failures can reach the handler wrapped several layers deep.
-Severity has to survive that nesting: a CriticalError stops the whole batch and a
-ConclusiveError fails the file outright, so neither may be masked by an
-InconclusiveError that would merely schedule a retry.
+Parts run inside nested TaskGroups, so failures can arrive wrapped several layers deep
+and severity has to survive that nesting.
 """
-
-from unittest.mock import MagicMock
 
 import pytest
 
-from dhfs.core.interrogator import Interrogator, _flatten_exception_group
-from tests.fixtures.config import get_config
-from tests.fixtures.utils import DHFS_CRYPT4GH_PRIVATE_KEY_PATH
+from dhfs.core.interrogator import (
+    InterrogatorPort,
+    _flatten_exception_group,
+    _most_significant_error,
+)
 
-CRITICAL = Interrogator.CriticalError("critical")
-CONCLUSIVE = Interrogator.DecryptionError()
-INCONCLUSIVE = Interrogator.InconclusiveError("inconclusive")
-
-
-@pytest.fixture(name="interrogator")
-def interrogator_fixture() -> Interrogator:
-    """An Interrogator with stubbed-out collaborators."""
-    config = get_config(
-        data_hub_crypt4gh_private_key_path=DHFS_CRYPT4GH_PRIVATE_KEY_PATH
-    )
-    return Interrogator(
-        config=config, central_client=MagicMock(), s3_client=MagicMock()
-    )
+CRITICAL = InterrogatorPort.CriticalError("critical")
+CONCLUSIVE = InterrogatorPort.DecryptionError()
+INCONCLUSIVE = InterrogatorPort.InconclusiveError("inconclusive")
 
 
 def test_flatten_nested_groups():
@@ -75,14 +61,14 @@ def test_flatten_nested_groups():
         "lone inconclusive survives",
     ],
 )
-def test_severity_wins_regardless_of_position(interrogator, errors, expected):
+def test_severity_wins_regardless_of_position(errors, expected):
     """The most severe error is surfaced no matter what order the parts failed in."""
     for ordering in (errors, list(reversed(errors))):
         group = ExceptionGroup("parts failed", ordering)
-        assert interrogator._most_significant_error(group) is expected
+        assert _most_significant_error(group) is expected
 
 
-def test_severity_survives_the_nested_part_group(interrogator):
+def test_severity_survives_the_nested_part_group():
     """A CriticalError still wins when it is raised a level deeper than its rival.
 
     This is the shape the overlapped verify/upload pair produces: the per-part group
@@ -95,4 +81,4 @@ def test_severity_survives_the_nested_part_group(interrogator):
             ExceptionGroup("part", [CRITICAL]),
         ],
     )
-    assert interrogator._most_significant_error(group) is CRITICAL
+    assert _most_significant_error(group) is CRITICAL

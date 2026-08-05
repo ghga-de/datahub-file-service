@@ -67,10 +67,7 @@ async def run_interrogator(forever: bool = True):
                     )
 
                 stop = now_utc_ms_prec()
-                # .total_seconds(), not .seconds: the latter is the seconds *component*
-                #  of the delta, so it silently drops whole days and the sub-second
-                #  remainder. A batch running past 24h would otherwise wrap around and
-                #  produce a needless wait.
+                # .seconds would drop whole days and the sub-second remainder
                 elapsed = (stop - start).total_seconds()
                 if elapsed < config.min_run_interval_seconds:
                     sleep_duration = config.min_run_interval_seconds - elapsed

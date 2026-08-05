@@ -20,14 +20,15 @@ hold for partial trailing segments as well as segment-aligned input.
 """
 
 import os
+from math import ceil
 from unittest.mock import MagicMock
 
 import crypt4gh.lib
 import pytest
 from pydantic import SecretBytes
 
-from dhfs.constants import ENCRYPTION_SECRET_LENGTH
-from dhfs.core.interrogator import SEGMENT_OVERHEAD, Interrogator
+from dhfs.constants import ENCRYPTION_SECRET_LENGTH, NONCE_LENGTH, SEGMENT_OVERHEAD
+from dhfs.core.interrogator import Interrogator
 from tests.fixtures.config import get_config
 from tests.fixtures.utils import DHFS_CRYPT4GH_PRIVATE_KEY_PATH
 
@@ -82,7 +83,7 @@ def test_reencrypted_size_matches_crypt4gh_framing(
     encrypted part it came from, so that S3 part numbers line up with download ranges.
     """
     secret = SecretBytes(os.urandom(ENCRYPTION_SECRET_LENGTH))
-    segments = -(-size // SEGMENT)  # ceil
+    segments = ceil(size / SEGMENT)
 
     ciphertext = interrogator._reencrypt_part(
         decrypted_part=os.urandom(size), new_secret=secret
@@ -127,7 +128,7 @@ def test_reencryption_uses_a_fresh_nonce_per_segment(interrogator: Interrogator)
     )
 
     nonces = {
-        bytes(ciphertext[i * CIPHER_SEGMENT : i * CIPHER_SEGMENT + 12])
+        bytes(ciphertext[i * CIPHER_SEGMENT : i * CIPHER_SEGMENT + NONCE_LENGTH])
         for i in range(segment_count)
     }
     assert len(nonces) == segment_count

@@ -168,12 +168,12 @@ This also mitigates the instrumentation blind spot described in §4.1.
 | Option | Default | Notes |
 |--------|--------:|-------|
 | `max_concurrent_files` | 2 | Files from one batch processed simultaneously |
-| `max_concurrent_parts` | 4 | Parts of one file processed simultaneously |
+| `max_concurrent_parts` | 8 | Parts in flight at once, across all files |
 
 Both are deliberately conservative. Peak memory is roughly
-`max_concurrent_files × max_concurrent_parts × 3 × part_size`; with the ~51 MiB adjusted
-parts that very large files receive, the 2×4 default already implies ~1.2 GB worst case.
-Both descriptions state this. Tune to the deployment's memory budget.
+`max_concurrent_parts × 3 × part_size` — see §4c, which made the parts budget
+process-wide so it no longer multiplies with the file count. Tune it to the
+deployment's memory budget.
 
 `config_schema.json`, `example_config.yaml`, and `README.md` were regenerated via
 `scripts/update_config_docs.py` and `scripts/update_readme.py`.
@@ -342,8 +342,8 @@ Guarantees held constant:
   than S3 speed. The FIFO-semaphore argument against deadlock still holds: tasks acquire
   slots in creation order, so a part never waits on a successor.
 - Memory is unchanged. Both concurrent sub-tasks stay inside the same semaphore slot, so
-  the `max_concurrent_files × max_concurrent_parts × 3 × part_size` bound in the config
-  documentation still holds.
+  the per-slot bound documented in the config still holds (§4c later restated that bound
+  in terms of one setting instead of two).
 - Error severity survives the extra nesting level. `_flatten_exception_group` was already
   recursive; `tests/unit/test_error_severity.py` now pins that a `CriticalError` raised
   inside the per-part group still outranks an `InconclusiveError` in the per-file group.
@@ -460,6 +460,55 @@ file. None of the three is fixable from DHFS — each sits inside the
 
 ---
 
+## 4c. One memory budget instead of two multiplying knobs
+
+`max_concurrent_files` and `max_concurrent_parts` were not two independent settings:
+they multiplied. The parts semaphore was created per file, so in-flight parts were
+`files × parts` and peak memory was
+`max_concurrent_files × max_concurrent_parts × 3 × part_size`. The quantity an operator
+actually needs to bound — memory — was not the quantity exposed, the factor of three was
+documented in prose and enforced nowhere, and raising either knob alone was unsafe.
+
+The parts semaphore is now process-wide (`Interrogator._part_slots`), shared by every
+file. Peak memory is `max_concurrent_parts × 3 × part_size`, a function of one setting,
+whatever `max_concurrent_files` is set to. `max_concurrent_files` still bounds how many
+multipart uploads are open at once, but no longer affects memory.
+
+**The default had to be rebased.** The old 2 × 4 allowed 8 parts in flight; a naive move
+to a shared budget of 4 would have silently halved concurrency. `max_concurrent_parts`
+therefore defaults to 8, preserving the measured throughput exactly:
+
+| config | before | after |
+|---|---|---|
+| 60 MiB, 6 MiB parts, 0 ms | 0.735 s | 0.722 s |
+| 60 MiB, 6 MiB parts, 20 ms | 0.787 s | 0.835 s |
+| 60 MiB, 16 MiB parts, 0 ms | 0.538 s | 0.515 s |
+| 60 MiB, 16 MiB parts, 20 ms | 0.611 s | 0.653 s |
+| Batch, 4 × 24 MiB, 20 ms | 1.366 s | 1.398 s |
+
+All within run-to-run noise, in both directions.
+
+A shared budget also improves utilisation: a lone large file previously got only
+`max_concurrent_parts` slots while the rest of the allowance sat idle, and can now use
+the whole budget.
+
+**Deadlock-freedom still holds**, and the argument is unchanged in shape. Semaphore
+acquisition is FIFO and a file's part tasks are created in part order, so a part is never
+admitted ahead of its predecessor. A part's fold waits only on its immediate predecessor
+in the *same* file, and part 0 never waits — so the lowest unfolded part of every file is
+always admitted and never blocked. Parts of other files interleave in the queue but
+participate in no other file's fold chain, so they can delay it but never block it.
+
+`tests/integration/test_interrogator.py::test_part_budget_is_shared_across_files` pins
+this: with the budget forced to 2 and two multi-part files in one batch, it observes 8
+concurrent parts against the old per-file semaphore and at most 2 now.
+
+`max_concurrent_deletions` was left as its own option. It is a genuinely separate
+concern — a request-rate dial for the cleanup routine with no memory cost and no
+interaction with the part budget.
+
+---
+
 ## 5. Summary
 
 | Item | Status |
@@ -471,6 +520,7 @@ file. None of the three is fixable from DHFS — each sits inside the
 | Verify pass overlapped with upload | Done — a further 1.10× per file |
 | Unordered parts, fold at end | Rejected — measurably slower, O(file) memory |
 | Part hashing off the event loop | Done — a further 1.18–1.35× per file |
+| Unified in-flight-parts memory budget | Done — one setting, not two multiplying ones |
 | Concurrent cleanup deletions | Done — was 1 round trip per object, serial |
 | JWT signing per request | Measured at 0.175 ms — not worth caching |
 | Pre-upload existence check | Kept — load-bearing for `dhfs verify` idempotency |

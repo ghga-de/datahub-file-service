@@ -646,6 +646,82 @@ async def test_connection_failed_on_report_failure(
     )
 
 
+async def test_part_budget_is_shared_across_files(
+    joint_fixture: JointFixture, httpx_mock: HTTPXMock
+):
+    """`max_concurrent_parts` bounds parts in flight across all files, not per file.
+
+    With a per-file budget, two files would each get the full allowance and the peak
+    would be twice the limit, which is what made peak memory depend on two settings
+    rather than one.
+    """
+    config = joint_fixture.config
+    await joint_fixture.s3.storage.create_bucket(INBOX)
+    await joint_fixture.s3.storage.create_bucket(config.interrogation_bucket_id)
+
+    file_uploads: list[FileUpload] = []
+    for _ in range(2):
+        object_id = str(uuid4())
+        encrypted_object = get_encrypted_object(
+            part_size=PART_SIZE, file_size=int(PART_SIZE * 3.5)
+        )
+        await upload_encrypted_object(
+            bucket_id=INBOX,
+            object_id=object_id,
+            storage=joint_fixture.s3.storage,
+            encrypted_object=encrypted_object,
+        )
+        file_uploads.append(
+            FileUpload(
+                id=uuid4(),
+                decrypted_sha256=encrypted_object.checksums.unencrypted_sha256.hexdigest(),
+                storage_alias=config.storage_alias,
+                bucket_id=INBOX,
+                object_id=UUID(object_id),
+                decrypted_size=encrypted_object.unencrypted_size,
+                encrypted_size=encrypted_object.encrypted_size,
+                part_size=PART_SIZE,
+            )
+        )
+
+    httpx_mock.add_response(
+        url=f"{config.central_api_url}/storages/{config.storage_alias}/uploads",
+        status_code=200,
+        json=[f.model_dump(mode="json") for f in file_uploads],
+    )
+    httpx_mock.add_response(
+        url=f"{config.central_api_url}/storages/{config.storage_alias}/interrogation-reports",
+        status_code=201,
+        json={},
+    )
+
+    budget = 2
+    interrogator = cast(Interrogator, joint_fixture.interrogator)
+    interrogator._part_slots = asyncio.Semaphore(budget)
+
+    in_flight = 0
+    peak = 0
+    original_prepare = interrogator._prepare_part
+
+    async def counting_prepare(ctx, **kwargs):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        try:
+            return await original_prepare(ctx, **kwargs)
+        finally:
+            in_flight -= 1
+
+    with patch.object(interrogator, "_prepare_part", counting_prepare):
+        await interrogator.interrogate_new_files()
+
+    # Both files have several parts each, so the budget has to actually bind
+    assert peak > 1, "test did not exercise any concurrency"
+    assert peak <= budget, (
+        f"{peak} parts were in flight at once, above the budget of {budget}"
+    )
+
+
 async def test_parts_completing_out_of_order(
     joint_fixture: JointFixture, httpx_mock: HTTPXMock
 ):
@@ -700,9 +776,9 @@ async def test_parts_completing_out_of_order(
     interrogator = cast(Interrogator, joint_fixture.interrogator)
     original_download = interrogator._download_part
 
-    async def staggered_download(*, part_no: int, **kwargs):
-        await asyncio.sleep(0.05 * (expected_part_count - part_no))
-        return await original_download(part_no=part_no, **kwargs)
+    async def staggered_download(ctx):
+        await asyncio.sleep(0.05 * (expected_part_count - ctx.part_no))
+        return await original_download(ctx)
 
     with patch.object(interrogator, "_download_part", staggered_download):
         await interrogator.interrogate_file(file_upload)

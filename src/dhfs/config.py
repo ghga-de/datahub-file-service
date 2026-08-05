@@ -126,22 +126,25 @@ class Config(
         default=2,
         ge=1,
         description=(
-            "How many files from a batch to process at the same time. Raising this"
-            + " increases throughput but also memory use and load on the S3 backend."
-            + " Peak memory is roughly max_concurrent_files * max_concurrent_parts *"
-            + " 3 * the file's part size, so raise it with care for large part sizes."
+            "How many files from a batch to process at the same time. This bounds how"
+            + " many multipart uploads are open at once. It does not affect memory use:"
+            + " that is governed by max_concurrent_parts alone."
         ),
     )
 
     max_concurrent_parts: int = Field(
-        default=4,
+        default=8,
         ge=1,
         description=(
-            "How many parts of a single file to process at the same time. This lets"
-            + " the download of one part overlap the re-encryption of another and the"
-            + " upload of a third. See max_concurrent_files for the memory impact."
+            "How many file parts to process at the same time, counted across all files"
+            + " being processed concurrently. This lets the download of one part overlap"
+            + " the re-encryption of another and the upload of a third, and it is the"
+            + " service's memory budget: peak use is roughly max_concurrent_parts * 3 *"
+            + " the part size, no matter how many files are in flight. Files share the"
+            + " budget, so a single large file can use all of it."
         ),
     )
+
     max_concurrent_deletions: int = Field(
         default=16,
         ge=1,

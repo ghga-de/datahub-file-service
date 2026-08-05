@@ -44,11 +44,7 @@ class Checksums:
 
     @staticmethod
     def digest_encrypted_part(part: bytes) -> tuple[bytes, bytes]:
-        """Return the (md5, sha256) digests of a single encrypted part.
-
-        Useful when parts are processed out of order and the digests have to be
-        collected before they can be stored in part order.
-        """
+        """Return the (md5, sha256) digests of a single encrypted part."""
         return (
             hashlib.md5(part, usedforsecurity=False).digest(),
             hashlib.sha256(part).digest(),
@@ -61,11 +57,7 @@ class Checksums:
         self.encrypted_sha256.append(sha256)
 
     def set_encrypted_parts(self, digests: list[tuple[bytes, bytes]]):
-        """Store per-part encrypted checksums that were calculated out of order.
-
-        `digests` must be ordered by part number, as returned by
-        `digest_encrypted_part()`.
-        """
+        """Replace the per-part encrypted checksums; `digests` must be in part order."""
         self.encrypted_md5 = [md5 for md5, _ in digests]
         self.encrypted_sha256 = [sha256 for _, sha256 in digests]
 
