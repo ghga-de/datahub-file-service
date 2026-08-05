@@ -348,13 +348,8 @@ class Interrogator(InterrogatorPort):
         new_secret: SecretBytes,
         log_extra: dict,
         timings: dict[str, float],
-    ) -> tuple[bytes, bytearray]:
-        """Decrypt a part, re-encrypt it under the new secret, then decrypt it again.
-
-        The final decryption is what proves the re-encryption round-trips, so its
-        output - not the first decryption's - is what feeds the whole-file checksum.
-
-        Returns the re-encrypted part and the re-decrypted plaintext.
+    ) -> bytes:
+        """Decrypt a part and re-encrypt it under the new secret.
 
         Runs the crypto in worker threads to keep the event loop free for the
         downloads and uploads of other parts.
@@ -397,7 +392,21 @@ class Interrogator(InterrogatorPort):
         finally:
             del decrypted_part
 
-        # Decrypt again to verify encryption process was correct
+        return reencrypted_part
+
+    async def _verify_part(
+        self,
+        *,
+        reencrypted_part: ByteBuffer,
+        new_secret: SecretBytes,
+        log_extra: dict,
+        timings: dict[str, float],
+    ) -> bytearray:
+        """Decrypt a re-encrypted part again to prove the round-trip was lossless.
+
+        This pass is what makes the re-encryption self-checking, so its output - not
+        the original plaintext - is what feeds the whole-file checksum.
+        """
         try:
             _time = time.monotonic()
             verified_part = await asyncio.to_thread(
@@ -407,12 +416,12 @@ class Interrogator(InterrogatorPort):
         except Exception as err:
             log.warning(
                 "File %s: A file part seems incorrectly re-encrypted.",
-                file_id,
+                log_extra["file_id"],
                 extra=log_extra,
             )
             raise self.InconclusiveError(err) from err
 
-        return reencrypted_part, verified_part
+        return verified_part
 
     async def _process_file_parts(
         self,
@@ -430,6 +439,10 @@ class Interrogator(InterrogatorPort):
         runs in worker threads, both to keep the event loop free for that overlap and
         because the underlying libsodium calls release the GIL for the bulk of their
         work.
+
+        Within a single part the verify pass and the upload also overlap, since the
+        verify pass only feeds the whole-file checksum and the upload only needs the
+        re-encrypted bytes.
 
         Returns the `Checksums` object containing the checksums calculated during
         the file processing. All error translation is done here, but all S3 cleanup is
@@ -489,7 +502,7 @@ class Interrogator(InterrogatorPort):
                 )
                 timings["download"] += time.monotonic() - _time
 
-                reencrypted_part, verified_part = await self._transform_part(
+                reencrypted_part = await self._transform_part(
                     encrypted_part=encrypted_part,
                     old_secret=old_secret,
                     new_secret=new_secret,
@@ -504,26 +517,50 @@ class Interrogator(InterrogatorPort):
                 )
                 digests[index] = (part_md5, part_sha256)
 
-                # Upload the re-encrypted part
-                _time = time.monotonic()
-                await self._upload_part(
-                    upload_id=upload_id,
-                    object_id=new_object_id,
-                    part_no=part_no,
-                    part_md5=part_md5,
-                    part=reencrypted_part,
-                )
-                timings["upload"] += time.monotonic() - _time
-                log.debug(
-                    "File %s: Uploaded S3 part %i.", file_id, part_no, extra=log_extra
-                )
-                del reencrypted_part
+                async def _verify_and_fold(part: bytes) -> None:
+                    """Prove the round-trip, then fold the plaintext into the file hash."""
+                    verified_part = await self._verify_part(
+                        reencrypted_part=part,
+                        new_secret=new_secret,
+                        log_extra=log_extra,
+                        timings=timings,
+                    )
+                    # Folding is order-dependent, so wait for the predecessor, then
+                    #  release the successor. Doing this here rather than after the
+                    #  upload keeps the chain advancing at crypto speed, not S3 speed.
+                    if index:
+                        await hashed[index - 1].wait()
+                    checksums.update_unencrypted(verified_part)
+                    hashed[index].set()
 
-                # Update whole-decrypted-file sha256, in part order
-                if index:
-                    await hashed[index - 1].wait()
-                checksums.update_unencrypted(verified_part)
-                hashed[index].set()
+                async def _upload(part: bytes) -> None:
+                    """Send the re-encrypted part to S3."""
+                    _time = time.monotonic()
+                    await self._upload_part(
+                        upload_id=upload_id,
+                        object_id=new_object_id,
+                        part_no=part_no,
+                        part_md5=part_md5,
+                        part=part,
+                    )
+                    timings["upload"] += time.monotonic() - _time
+                    log.debug(
+                        "File %s: Uploaded S3 part %i.",
+                        file_id,
+                        part_no,
+                        extra=log_extra,
+                    )
+
+                # The verify pass exists to prove the re-encryption round-trips; its
+                #  output feeds the whole-file checksum but nothing the upload needs.
+                #  So the two run together instead of the upload waiting on it.
+                async with asyncio.TaskGroup() as part_group:
+                    part_group.create_task(_verify_and_fold(reencrypted_part))
+                    part_group.create_task(_upload(reencrypted_part))
+
+                # Free the part before releasing the slot, so the part that takes this
+                #  slot next does not overlap with this one's buffer still being alive.
+                del reencrypted_part
 
         _wall = time.monotonic()
         try:

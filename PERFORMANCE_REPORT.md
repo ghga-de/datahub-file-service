@@ -292,6 +292,62 @@ already delivered.
 
 ---
 
+## 4a. Follow-up: is the in-order hash fold a bottleneck?
+
+The pipeline keeps one ordering constraint: the whole-file SHA-256 is order-dependent, so
+each part waits on `hashed[index-1]` before folding its plaintext in. The question was
+whether dropping that — running parts fully unordered and consolidating at the end —
+would buy anything, and whether reordering within a part would.
+
+**Measured first.** Instrumenting the wait showed `stall_s` of 0.145–0.178 s and
+`hash_s` ~0.06 s, both accrued while holding a semaphore slot. That looked like headroom,
+so three variants were built and benchmarked (best of 3 runs, 60 MiB file):
+
+| config | A: baseline | B: fold before upload | C: verify ∥ upload | D: fold at end |
+|---|---|---|---|---|
+| 6 MiB parts, 0 ms | 0.924 | 0.951 | **0.842** | 0.886 |
+| 6 MiB parts, 20 ms | 0.999 | 0.997 | **0.940** | 0.927 |
+| 16 MiB parts, 0 ms | 0.749 | 0.728 | **0.677** | 0.730 |
+| 16 MiB parts, 20 ms | 0.826 | 0.819 | **0.749** | 0.782 |
+
+**Consolidating order at the end does not help.** Variant D removes the constraint
+outright — `stall_s` is 0 by construction — and is still slower than C, which keeps it.
+The reason is that the in-order fold currently overlaps with other parts' I/O and is
+therefore nearly free, whereas hoisting all the hashing to the end serializes it on the
+critical path with nothing left to overlap against. It would also cost O(file size) of
+resident plaintext: for a 100 GiB file, the entire decrypted file. Rejected on both counts.
+
+Likewise B, moving the fold ahead of the upload, is within noise. The ordering chain is
+pipeline slack, not critical path.
+
+**The reordering that does pay is C**, now implemented. Within a part, the verify-decrypt
+and the upload are independent — the verify pass feeds only the whole-file checksum, and
+the upload needs only the re-encrypted bytes — so they run concurrently in a per-part
+`TaskGroup` instead of the upload waiting on the verify. This removes a whole crypto pass
+from each part's critical path for **~1.10× on single files and 1.08× on a batch**
+(1.790 s → 1.663 s, 53.6 → 57.7 MiB/s), on top of the gains in §3.
+
+Guarantees held constant:
+
+- The in-order fold is kept, so the SHA-256 is still computed over the re-decrypted bytes
+  in part order (§4.7 unchanged).
+- The fold moved inside the verify task, so the chain now advances at crypto speed rather
+  than S3 speed. The FIFO-semaphore argument against deadlock still holds: tasks acquire
+  slots in creation order, so a part never waits on a successor.
+- Memory is unchanged. Both concurrent sub-tasks stay inside the same semaphore slot, so
+  the `max_concurrent_files × max_concurrent_parts × 3 × part_size` bound in the config
+  documentation still holds.
+- Error severity survives the extra nesting level. `_flatten_exception_group` was already
+  recursive; `tests/unit/test_error_severity.py` now pins that a `CriticalError` raised
+  inside the per-part group still outranks an `InconclusiveError` in the per-file group.
+
+On failure the part is now uploaded even when its verify pass fails, where previously the
+verify short-circuited it. This is harmless — the multipart upload is aborted and never
+completed — and it trades a little wasted bandwidth on the rare failure path for the
+speedup on every success.
+
+---
+
 ## 5. Summary
 
 | Item | Status |
@@ -300,6 +356,8 @@ already delivered.
 | Removed `upload_buffer` copies | Done |
 | Crypto off event loop, parts pipelined | Done — 1.4–1.7× per file |
 | Concurrency across files | Done — 1.94× per batch |
+| Verify pass overlapped with upload | Done — a further 1.10× per file |
+| Unordered parts, fold at end | Rejected — measurably slower, O(file) memory |
 | Wall-clock metrics | Done |
 | Confirm Central API report cost | **Open — needs production check** |
 | Per-part `ListMultipartUploads` | **Open — blocked on hexkit** |
@@ -309,6 +367,6 @@ already delivered.
 | S3 minimum part size floor | Open — pre-existing |
 | Verify-decrypt pass | Retained by decision |
 
-Net measured improvement: **1.4–1.9× wall time**, largest for multi-part files and full
+Net measured improvement: **1.5–2.1× wall time**, largest for multi-part files and full
 batches against a latent endpoint. The single largest remaining win (§4.2) requires an
 upstream change, and §4.1 may yet prove to be the actual cause of the reported symptom.
