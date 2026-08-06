@@ -22,6 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from dhfs.adapters.outbound.central import UPLOADS_PATH
 from dhfs.config import Config
 from dhfs.core.verifier import (
     INTERROGATION_OBJECT_ID,
@@ -95,9 +96,9 @@ async def test_run_dhfs_verification_pings_central_new_uploads_endpoint(config: 
             "data_hub_crypt4gh_public_key_path": Path("/fake/key.pub"),
         }
     )
-    expected_url = (
-        f"{str(verifier_config.central_api_url).rstrip('/')}"
-        f"/storages/{verifier_config.storage_alias}/uploads"
+    base_url = str(verifier_config.central_api_url).rstrip("/")
+    expected_url = base_url + UPLOADS_PATH.format(
+        storage_alias=verifier_config.storage_alias
     )
     central_api = CentralApiMock(config=verifier_config)
 

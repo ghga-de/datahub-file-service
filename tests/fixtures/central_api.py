@@ -23,29 +23,31 @@ __all__ = [
     "respond",
 ]
 
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx2
 from ghga_service_commons.api.mock_router import MockRouter
 
-from dhfs.adapters.outbound.central import CentralClientConfig
+from dhfs.adapters.outbound.central import (
+    INTERROGATION_REPORTS_PATH,
+    REMOVABLE_FILES_PATH,
+    UPLOADS_PATH,
+    CentralClientConfig,
+)
 from dhfs.adapters.outbound.http import HttpClientConfig, get_configured_httpx_client
 
-ResponseHandler = Callable[
-    [httpx2.Request], httpx2.Response | Awaitable[httpx2.Response]
-]
-
-_NO_BODY = object()
+ResponseHandler = Callable[[httpx2.Request], httpx2.Response]
 
 
-def respond(status_code: int, json: Any = _NO_BODY) -> ResponseHandler:
-    """Make a handler that always answers with the same status code and JSON body."""
+def respond(status_code: int, json: Any = None) -> ResponseHandler:
+    """Make a handler that always answers with the same status code and JSON body.
+
+    A `json` of `None` means the response carries no body at all.
+    """
 
     def handler(request: httpx2.Request) -> httpx2.Response:
-        if json is _NO_BODY:
-            return httpx2.Response(status_code=status_code)
         return httpx2.Response(status_code=status_code, json=json)
 
     return handler
@@ -65,9 +67,8 @@ class CentralApiMock:
 
     Each endpoint answers with the handler assigned to `on_fetch_new_uploads`,
     `on_get_removable_files` or `on_submit_report`. Tests can swap those out with
-    `respond(...)`, `fail_to_connect(...)` or any other callable taking the request -
-    both sync and async callables are supported. Every request that reaches the mock is
-    recorded in `requests`.
+    `respond(...)`, `fail_to_connect(...)` or any other callable taking the request.
+    Every request that reaches the mock is recorded in `requests`.
     """
 
     def __init__(self, *, config: CentralClientConfig) -> None:
@@ -81,35 +82,32 @@ class CentralApiMock:
 
         router: MockRouter = MockRouter()
 
-        @router.get(f"{base_path}/storages/{{storage_alias}}/uploads")
-        async def fetch_new_uploads(
+        @router.get(f"{base_path}{UPLOADS_PATH}")
+        def fetch_new_uploads(
             storage_alias: str, request: httpx2.Request
         ) -> httpx2.Response:
-            return await self._handle(request, self.on_fetch_new_uploads)
+            return self._handle(request, self.on_fetch_new_uploads)
 
-        @router.post(f"{base_path}/storages/{{storage_alias}}/uploads/can_remove")
-        async def get_removable_files(
+        @router.post(f"{base_path}{REMOVABLE_FILES_PATH}")
+        def get_removable_files(
             storage_alias: str, request: httpx2.Request
         ) -> httpx2.Response:
-            return await self._handle(request, self.on_get_removable_files)
+            return self._handle(request, self.on_get_removable_files)
 
-        @router.post(f"{base_path}/storages/{{storage_alias}}/interrogation-reports")
-        async def submit_interrogation_report(
+        @router.post(f"{base_path}{INTERROGATION_REPORTS_PATH}")
+        def submit_interrogation_report(
             storage_alias: str, request: httpx2.Request
         ) -> httpx2.Response:
-            return await self._handle(request, self.on_submit_report)
+            return self._handle(request, self.on_submit_report)
 
         self._router = router
 
-    async def _handle(
+    def _handle(
         self, request: httpx2.Request, handler: ResponseHandler
     ) -> httpx2.Response:
         """Record the request and let the currently assigned handler answer it."""
         self.requests.append(request)
-        response = handler(request)
-        if isinstance(response, httpx2.Response):
-            return response
-        return await response
+        return handler(request)
 
     def as_transport(self) -> httpx2.MockTransport:
         """Return a transport that answers every request with this mock.

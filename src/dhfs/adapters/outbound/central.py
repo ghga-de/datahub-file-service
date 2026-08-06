@@ -34,6 +34,11 @@ from dhfs.ports.outbound.central import CentralClientPort
 
 log = logging.getLogger(__name__)
 
+# Paths of the Central API endpoints, relative to the configured base URL.
+UPLOADS_PATH = "/storages/{storage_alias}/uploads"
+REMOVABLE_FILES_PATH = "/storages/{storage_alias}/uploads/can_remove"
+INTERROGATION_REPORTS_PATH = "/storages/{storage_alias}/interrogation-reports"
+
 
 class CentralClientConfig(BaseSettings):
     """Configuration required for the CentralClient class"""
@@ -83,6 +88,10 @@ class CentralClient(CentralClientPort):
             value_error = ValueError("No private token-signing key found.")
             log.error(value_error)
             raise value_error
+
+    def _url_for(self, path: str) -> str:
+        """Build the full URL for one of the Central API path templates above."""
+        return self._base_url + path.format(storage_alias=self._storage_alias)
 
     def _make_jwt(self) -> str:
         claims: dict[str, str] = {
@@ -136,7 +145,7 @@ class CentralClient(CentralClientPort):
         - UpgradeRequiredError if the central API indicates this DHFS instance is outdated
         - ResponseFormatError if response body parsing fails.
         """
-        url = f"{self._base_url}/storages/{self._storage_alias}/uploads"
+        url = self._url_for(UPLOADS_PATH)
         log.debug("Fetching new uploads from %s.", url)
         try:
             response = await self._httpx_client.get(
@@ -163,7 +172,7 @@ class CentralClient(CentralClientPort):
         - CentralAPIError if the request to the central API fails.
         - UpgradeRequiredError if the central API indicates this DHFS instance is outdated
         """
-        url = f"{self._base_url}/storages/{self._storage_alias}/uploads/can_remove"
+        url = self._url_for(REMOVABLE_FILES_PATH)
         log.debug(
             "Querying GHGA Central API about removability of %i files (URL is %s).",
             len(object_ids),
@@ -196,7 +205,7 @@ class CentralClient(CentralClientPort):
         - UpgradeRequiredError if the central API indicates this DHFS instance is outdated
         """
         body = report.model_dump(mode="json")
-        url = f"{self._base_url}/storages/{self._storage_alias}/interrogation-reports"
+        url = self._url_for(INTERROGATION_REPORTS_PATH)
         msg = (
             "was successfully re-encrypted"
             if report.passed
