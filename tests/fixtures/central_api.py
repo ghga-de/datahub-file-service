@@ -69,10 +69,17 @@ class CentralApiMock:
     `on_get_removable_files` or `on_submit_report`. Tests can swap those out with
     `respond(...)`, `fail_to_connect(...)` or any other callable taking the request.
     Every request that reaches the mock is recorded in `requests`.
+
+    By default the transport returned by `as_transport()` answers *every* request, so a
+    test cannot accidentally reach the network. Pass `passthrough=True` where the same
+    client also has to carry real traffic - the S3 testcontainer, in practice.
     """
 
-    def __init__(self, *, config: CentralClientConfig) -> None:
+    def __init__(
+        self, *, config: CentralClientConfig, passthrough: bool = False
+    ) -> None:
         self._base_url = str(config.central_api_url).rstrip("/")
+        self._passthrough = passthrough
         base_path = httpx2.URL(self._base_url).path
 
         self.requests: list[httpx2.Request] = []
@@ -109,20 +116,17 @@ class CentralApiMock:
         self.requests.append(request)
         return handler(request)
 
-    def as_transport(self) -> httpx2.MockTransport:
-        """Return a transport that answers every request with this mock.
+    def as_transport(self) -> httpx2.AsyncBaseTransport:
+        """Return a transport answering Central API requests with this mock.
 
-        Only use this where all traffic is Central API traffic - otherwise use
-        `as_routing_transport()`.
+        Requests to anything else raise, unless the mock was built with
+        `passthrough=True`, in which case they are sent over the network as usual.
         """
-        return self._router.as_transport()
-
-    def as_routing_transport(self) -> httpx2.AsyncBaseTransport:
-        """Return a transport that answers Central API requests with this mock and
-        sends everything else (e.g. S3 traffic) over the network as usual.
-        """
+        mock_transport = self._router.as_transport()
+        if not self._passthrough:
+            return mock_transport
         return _CentralApiRoutingTransport(
-            mock_transport=self.as_transport(), base_url=self._base_url
+            mock_transport=mock_transport, base_url=self._base_url
         )
 
 
@@ -153,6 +157,6 @@ async def get_mocked_httpx_client(
     `central_api` while leaving all other traffic untouched.
     """
     async with get_configured_httpx_client(
-        config=config, base_transport=central_api.as_routing_transport()
+        config=config, base_transport=central_api.as_transport()
     ) as client:
         yield client
